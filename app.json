@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "minecraft-guide-mobile",
-    "slug": "minecraft-guide-mobile",
+    "name": "Guia Minecraft Pro",
+    "slug": "guia-minecraft-pro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

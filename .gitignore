@@ -25,6 +25,17 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
+*.err
+.cloudflared.log
+.localhostrun.log
+.localhostrun.out.log
+.localhostrun.err.log
+.localtunnel.out.log
+.localtunnel.err.log
+.expo-*.log
+.expo-*.err
+cloudflared.exe
 
 # macOS
 .DS_Store
