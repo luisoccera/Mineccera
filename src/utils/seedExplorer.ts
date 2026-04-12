@@ -42,6 +42,16 @@ export interface BiomeCell {
   z: number;
 }
 
+export interface TerrainCell {
+  col: number;
+  row: number;
+  terrainColor: string;
+  terrainId: string;
+  terrainName: string;
+  x: number;
+  z: number;
+}
+
 interface BiomeDefinition {
   color: string;
   id: string;
@@ -695,6 +705,76 @@ export const getBiomeAtPoint = ({
   };
 };
 
+export const getTerrainAtPoint = ({
+  dimension,
+  edition,
+  seed,
+  x,
+  z,
+}: {
+  dimension: SeedDimension;
+  edition: SeedEdition;
+  seed: string;
+  x: number;
+  z: number;
+}) => {
+  const seedValue = parseSeedValue(seed) ^ (edition === 'java_1_21' ? 0x43e917aa : 0x4b1dca72);
+  const broad = valueNoise(seedValue, x, z, 950, 0x2f31);
+  const local = valueNoise(seedValue, x, z, 380, 0x31a7);
+  const riverNoise = valueNoise(seedValue, x, z, 560, 0x49bf);
+  const heat = valueNoise(seedValue, x, z, 840, 0x63d4);
+  const roughness = valueNoise(seedValue, x, z, 270, 0x7cf1);
+  const elevation = broad * 0.62 + local * 0.38;
+
+  if (dimension === 'nether') {
+    if (elevation < 0.2) {
+      return { terrainColor: '#C94B22', terrainId: 'lava-sea', terrainName: 'Mar de lava', x, z };
+    }
+    if (roughness > 0.78) {
+      return { terrainColor: '#6C5D5B', terrainId: 'basalt-ridges', terrainName: 'Risco de basalto', x, z };
+    }
+    if (heat > 0.72) {
+      return { terrainColor: '#8E2A3F', terrainId: 'hot-zone', terrainName: 'Zona caliente', x, z };
+    }
+    return { terrainColor: '#7A3D30', terrainId: 'nether-land', terrainName: 'Tierra del Nether', x, z };
+  }
+
+  if (dimension === 'end') {
+    const dist = Math.sqrt(x * x + z * z);
+    if (dist < 850) {
+      return { terrainColor: '#453E59', terrainId: 'void', terrainName: 'Vacio', x, z };
+    }
+    if (elevation < 0.23) {
+      return { terrainColor: '#7D775D', terrainId: 'small-islands', terrainName: 'Islas pequenas', x, z };
+    }
+    if (elevation > 0.72) {
+      return { terrainColor: '#D0C798', terrainId: 'high-islands', terrainName: 'Islas altas', x, z };
+    }
+    return { terrainColor: '#B8B082', terrainId: 'main-islands', terrainName: 'Islas del End', x, z };
+  }
+
+  const riverBand = Math.abs(riverNoise - 0.5);
+  if (elevation < 0.24) {
+    return { terrainColor: '#2E67A7', terrainId: 'water', terrainName: 'Agua profunda', x, z };
+  }
+  if (riverBand < 0.036 && elevation < 0.68) {
+    return { terrainColor: '#63B0E7', terrainId: 'river', terrainName: 'Rio', x, z };
+  }
+  if (elevation > 0.82 || (elevation > 0.74 && roughness > 0.66)) {
+    return { terrainColor: '#BFC3CC', terrainId: 'mountain', terrainName: 'Montana', x, z };
+  }
+  if (elevation > 0.66) {
+    return { terrainColor: '#85946A', terrainId: 'hills', terrainName: 'Colinas', x, z };
+  }
+  if (heat > 0.72 && elevation > 0.3 && roughness < 0.55) {
+    return { terrainColor: '#D4B26E', terrainId: 'dry-plains', terrainName: 'Planicie seca', x, z };
+  }
+  if (roughness < 0.28 && elevation > 0.34 && elevation < 0.62) {
+    return { terrainColor: '#5F8457', terrainId: 'flat-plains', terrainName: 'Planicie', x, z };
+  }
+  return { terrainColor: '#4E7D4B', terrainId: 'mixed-land', terrainName: 'Terreno mixto', x, z };
+};
+
 export const generateBiomeCells = ({
   centerX,
   centerZ,
@@ -729,6 +809,49 @@ export const generateBiomeCells = ({
         biomeName: biome.biomeName,
         col,
         row,
+        x,
+        z,
+      });
+    }
+  }
+
+  return cells;
+};
+
+export const generateTerrainCells = ({
+  centerX,
+  centerZ,
+  dimension,
+  edition,
+  radius,
+  samplesPerSide,
+  seed,
+}: {
+  centerX: number;
+  centerZ: number;
+  dimension: SeedDimension;
+  edition: SeedEdition;
+  radius: number;
+  samplesPerSide: number;
+  seed: string;
+}) => {
+  const cells: TerrainCell[] = [];
+  const span = radius * 2;
+
+  for (let row = 0; row < samplesPerSide; row += 1) {
+    for (let col = 0; col < samplesPerSide; col += 1) {
+      const normalizedX = (col + 0.5) / samplesPerSide;
+      const normalizedZ = (row + 0.5) / samplesPerSide;
+      const x = centerX - radius + span * normalizedX;
+      const z = centerZ - radius + span * normalizedZ;
+      const terrain = getTerrainAtPoint({ dimension, edition, seed, x, z });
+
+      cells.push({
+        col,
+        row,
+        terrainColor: terrain.terrainColor,
+        terrainId: terrain.terrainId,
+        terrainName: terrain.terrainName,
         x,
         z,
       });

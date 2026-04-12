@@ -5,8 +5,10 @@ import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
 import {
   generateBiomeCells,
+  generateTerrainCells,
   generateStructurePoints,
   getBiomeAtPoint,
+  getTerrainAtPoint,
   structureCategories,
   structureDistance,
   structureLayers,
@@ -15,6 +17,7 @@ import {
   type SeedEdition,
   type StructureCategory,
   type StructureLayer,
+  type TerrainCell,
 } from '../utils/seedExplorer';
 
 const editions: Array<{ id: SeedEdition; label: string }> = [
@@ -107,6 +110,22 @@ interface BiomeSummary {
   percent: number;
 }
 
+interface TerrainSummary {
+  count: number;
+  percent: number;
+  terrainColor: string;
+  terrainId: string;
+  terrainName: string;
+}
+
+interface CursorState {
+  active: boolean;
+  canvasX: number;
+  canvasY: number;
+  worldX: number;
+  worldZ: number;
+}
+
 export function SeedMapScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -124,9 +143,17 @@ export function SeedMapScreen() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [showGrid, setShowGrid] = useState(true);
   const [showBiomes, setShowBiomes] = useState(true);
+  const [showTerrain, setShowTerrain] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<CursorState>({
+    active: false,
+    canvasX: 0,
+    canvasY: 0,
+    worldX: 0,
+    worldZ: 0,
+  });
   const [applied, setApplied] = useState<AppliedSearch>({
     centerX: 0,
     centerY: 64,
@@ -187,6 +214,10 @@ export function SeedMapScreen() {
   const biomeCellSize = mapSize / biomeCellsPerSide;
 
   const effectiveRadius = Math.max(400, Math.round(applied.radius / zoom));
+  const mapMinX = applied.centerX - effectiveRadius;
+  const mapMaxX = applied.centerX + effectiveRadius;
+  const mapMinZ = applied.centerZ - effectiveRadius;
+  const mapMaxZ = applied.centerZ + effectiveRadius;
 
   const layerById = useMemo(() => {
     const map = new Map<string, StructureLayer>();
@@ -216,6 +247,22 @@ export function SeedMapScreen() {
     () =>
       hasSearched
         ? generateBiomeCells({
+            centerX: applied.centerX,
+            centerZ: applied.centerZ,
+            dimension,
+            edition,
+            radius: effectiveRadius,
+            samplesPerSide: biomeCellsPerSide,
+            seed: applied.seed,
+          })
+        : [],
+    [applied.centerX, applied.centerZ, applied.seed, biomeCellsPerSide, dimension, edition, effectiveRadius, hasSearched]
+  );
+
+  const terrainCells = useMemo<TerrainCell[]>(
+    () =>
+      hasSearched
+        ? generateTerrainCells({
             centerX: applied.centerX,
             centerZ: applied.centerZ,
             dimension,
@@ -264,6 +311,13 @@ export function SeedMapScreen() {
         .map((entry) => ({
           ...entry,
           biome: getBiomeAtPoint({
+            dimension,
+            edition,
+            seed: applied.seed,
+            x: entry.x,
+            z: entry.z,
+          }),
+          terrain: getTerrainAtPoint({
             dimension,
             edition,
             seed: applied.seed,
@@ -319,6 +373,32 @@ export function SeedMapScreen() {
         : null,
     [applied.seed, dimension, edition, selectedMarker]
   );
+  const centerTerrain = useMemo(
+    () =>
+      hasSearched
+        ? getTerrainAtPoint({
+            dimension,
+            edition,
+            seed: applied.seed,
+            x: applied.centerX,
+            z: applied.centerZ,
+          })
+        : null,
+    [applied.centerX, applied.centerZ, applied.seed, dimension, edition, hasSearched]
+  );
+  const selectedTerrain = useMemo(
+    () =>
+      selectedMarker
+        ? getTerrainAtPoint({
+            dimension,
+            edition,
+            seed: applied.seed,
+            x: selectedMarker.x,
+            z: selectedMarker.z,
+          })
+        : null,
+    [applied.seed, dimension, edition, selectedMarker]
+  );
 
   const biomeSummary = useMemo<BiomeSummary[]>(() => {
     if (!biomeCells.length) {
@@ -352,6 +432,38 @@ export function SeedMapScreen() {
       .slice(0, 10);
   }, [biomeCells]);
 
+  const terrainSummary = useMemo<TerrainSummary[]>(() => {
+    if (!terrainCells.length) {
+      return [];
+    }
+
+    const grouped = new Map<string, TerrainSummary>();
+    for (const cell of terrainCells) {
+      const current = grouped.get(cell.terrainId);
+      if (!current) {
+        grouped.set(cell.terrainId, {
+          count: 1,
+          percent: 0,
+          terrainColor: cell.terrainColor,
+          terrainId: cell.terrainId,
+          terrainName: cell.terrainName,
+        });
+      } else {
+        current.count += 1;
+        grouped.set(cell.terrainId, current);
+      }
+    }
+
+    const total = terrainCells.length;
+    return [...grouped.values()]
+      .map((entry) => ({
+        ...entry,
+        percent: Math.max(1, Math.round((entry.count / total) * 100)),
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [terrainCells]);
+
   useEffect(() => {
     if (selectedMarkerId && !markers.some((marker) => marker.id === selectedMarkerId)) {
       setSelectedMarkerId(null);
@@ -365,6 +477,45 @@ export function SeedMapScreen() {
     }
     return lines;
   }, [mapSize]);
+  const rulerTicks = useMemo(
+    () => gridLines.filter((_, index) => index % 2 === 0),
+    [gridLines]
+  );
+
+  const pointerToWorld = (canvasX: number, canvasY: number) => {
+    const clampedX = Math.max(0, Math.min(mapSize, canvasX));
+    const clampedY = Math.max(0, Math.min(mapSize, canvasY));
+    const worldX = mapMinX + (clampedX / mapSize) * (mapMaxX - mapMinX);
+    const worldZ = mapMinZ + (clampedY / mapSize) * (mapMaxZ - mapMinZ);
+    return { clampedX, clampedY, worldX, worldZ };
+  };
+
+  const updateCursor = (canvasX: number, canvasY: number, active = true) => {
+    const mapped = pointerToWorld(canvasX, canvasY);
+    setCursor({
+      active,
+      canvasX: mapped.clampedX,
+      canvasY: mapped.clampedY,
+      worldX: mapped.worldX,
+      worldZ: mapped.worldZ,
+    });
+  };
+
+  const cursorCellInfo = useMemo(() => {
+    if (!hasSearched || !biomeCells.length || !terrainCells.length) {
+      return null;
+    }
+    const col = Math.max(0, Math.min(biomeCellsPerSide - 1, Math.floor(cursor.canvasX / biomeCellSize)));
+    const row = Math.max(0, Math.min(biomeCellsPerSide - 1, Math.floor(cursor.canvasY / biomeCellSize)));
+    const index = row * biomeCellsPerSide + col;
+    const biome = biomeCells[index];
+    const terrain = terrainCells[index];
+
+    return {
+      biomeName: biome?.biomeName ?? 'N/A',
+      terrainName: terrain?.terrainName ?? 'N/A',
+    };
+  }, [biomeCellSize, biomeCells, biomeCellsPerSide, cursor.canvasX, cursor.canvasY, hasSearched, terrainCells]);
 
   const activateAll = () => setActiveLayers(availableLayers.map((layer) => layer.id));
   const deactivateAll = () => setActiveLayers([]);
@@ -388,15 +539,24 @@ export function SeedMapScreen() {
     setActiveLayers((prev) => (prev.includes(layerId) ? prev.filter((id) => id !== layerId) : [...prev, layerId]));
 
   const runSearch = () => {
+    const nextCenterX = parseCoordinate(x);
+    const nextCenterZ = parseCoordinate(z);
     setApplied({
-      centerX: parseCoordinate(x),
+      centerX: nextCenterX,
       centerY: parseCoordinate(y),
-      centerZ: parseCoordinate(z),
+      centerZ: nextCenterZ,
       radius: parseRadius(radiusInput),
       seed: seed.trim() || '0',
     });
     setHasSearched(true);
     setSelectedMarkerId(null);
+    setCursor({
+      active: false,
+      canvasX: mapSize / 2,
+      canvasY: mapSize / 2,
+      worldX: nextCenterX,
+      worldZ: nextCenterZ,
+    });
   };
 
   const focusMarker = () => {
@@ -406,6 +566,13 @@ export function SeedMapScreen() {
     setX(Math.round(selectedMarker.x).toString());
     setZ(Math.round(selectedMarker.z).toString());
     setApplied((prev) => ({ ...prev, centerX: selectedMarker.x, centerZ: selectedMarker.z }));
+    setCursor({
+      active: true,
+      canvasX: mapSize / 2,
+      canvasY: mapSize / 2,
+      worldX: selectedMarker.x,
+      worldZ: selectedMarker.z,
+    });
   };
 
   const shortLabel = (name: string) => (name.length > 14 ? `${name.slice(0, 12)}..` : name);
@@ -591,6 +758,11 @@ export function SeedMapScreen() {
         ) : (
           <>
             <View style={styles.chips}>
+              <Pressable onPress={() => setShowTerrain((v) => !v)} style={[styles.chip, showTerrain && styles.chipActive]}>
+                <Text style={[styles.chipText, showTerrain && styles.chipTextActive]}>
+                  {showTerrain ? 'Terreno ON' : 'Terreno OFF'}
+                </Text>
+              </Pressable>
               <Pressable onPress={() => setShowBiomes((v) => !v)} style={[styles.chip, showBiomes && styles.chipActive]}>
                 <Text style={[styles.chipText, showBiomes && styles.chipTextActive]}>{showBiomes ? 'Biomas ON' : 'Biomas OFF'}</Text>
               </Pressable>
@@ -602,49 +774,125 @@ export function SeedMapScreen() {
               </Pressable>
             </View>
 
-            <View style={[styles.mapWrap, { height: mapSize + 8 }]}>
-              <View style={[styles.mapCanvas, { height: mapSize, width: mapSize }]}>
-                {showBiomes
-                  ? biomeCells.map((cell) => (
-                      <View
-                        key={`biome-${cell.row}-${cell.col}`}
-                        style={[
-                          styles.biomeCell,
-                          {
-                            backgroundColor: cell.biomeColor,
-                            height: biomeCellSize + 0.6,
-                            left: cell.col * biomeCellSize,
-                            top: cell.row * biomeCellSize,
-                            width: biomeCellSize + 0.6,
-                          },
-                        ]}
-                      />
-                    ))
-                  : null}
-                {showGrid ? gridLines.map((line, i) => <View key={`h-${i}`} style={[styles.gridH, { top: line }]} />) : null}
-                {showGrid ? gridLines.map((line, i) => <View key={`v-${i}`} style={[styles.gridV, { left: line }]} />) : null}
-
-                <View style={[styles.axisH, { top: mapSize / 2 }]} />
-                <View style={[styles.axisV, { left: mapSize / 2 }]} />
-
-                {markers.map((marker) => (
-                  <View key={marker.id}>
-                    <Pressable onPress={() => setSelectedMarkerId(marker.id)} style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}>
-                      <View style={[styles.marker, selectedMarkerId === marker.id && styles.markerSelected, { backgroundColor: marker.color }]} />
-                    </Pressable>
-                    {showLabels ? (
-                      <Text style={[styles.markerLabel, { left: marker.left + 8, top: marker.top - 6 }]}>{shortLabel(marker.layer.name)}</Text>
-                    ) : null}
-                  </View>
+            <View style={styles.mapFrame}>
+              <View style={[styles.topRuler, { width: mapSize }]}>
+                <Text style={styles.axisTitleTop}>X</Text>
+                {rulerTicks.map((line, index) => (
+                  <Text
+                    key={`x-tick-${index}`}
+                    style={[
+                      styles.rulerText,
+                      { left: Math.max(0, Math.min(mapSize - 52, line - 26)) },
+                    ]}
+                  >
+                    {Math.round(mapMinX + (line / mapSize) * (mapMaxX - mapMinX))}
+                  </Text>
                 ))}
-
-                <View style={[styles.center, { left: mapSize / 2 - 7, top: mapSize / 2 - 7 }]} />
               </View>
+
+              <View style={styles.mapRowWrap}>
+                <View style={[styles.leftRuler, { height: mapSize }]}>
+                  <Text style={styles.axisTitleLeft}>Y / Z</Text>
+                  {rulerTicks.map((line, index) => (
+                    <Text
+                      key={`z-tick-${index}`}
+                      style={[
+                        styles.rulerTextVertical,
+                        { top: Math.max(0, Math.min(mapSize - 13, line - 6)) },
+                      ]}
+                    >
+                      {Math.round(mapMinZ + (line / mapSize) * (mapMaxZ - mapMinZ))}
+                    </Text>
+                  ))}
+                </View>
+
+                <View
+                  onMoveShouldSetResponder={() => true}
+                  onPointerMove={(event) => {
+                    const native = event.nativeEvent as unknown as { offsetX?: number; offsetY?: number };
+                    updateCursor(native.offsetX ?? mapSize / 2, native.offsetY ?? mapSize / 2, true);
+                  }}
+                  onPointerLeave={() => setCursor((prev) => ({ ...prev, active: false }))}
+                  onResponderGrant={(event) => updateCursor(event.nativeEvent.locationX, event.nativeEvent.locationY, true)}
+                  onResponderMove={(event) => updateCursor(event.nativeEvent.locationX, event.nativeEvent.locationY, true)}
+                  onResponderRelease={() => setCursor((prev) => ({ ...prev, active: false }))}
+                  onResponderTerminate={() => setCursor((prev) => ({ ...prev, active: false }))}
+                  onStartShouldSetResponder={() => true}
+                  style={[styles.mapCanvas, { height: mapSize, width: mapSize }]}
+                >
+                  {showTerrain
+                    ? terrainCells.map((cell) => (
+                        <View
+                          key={`terrain-${cell.row}-${cell.col}`}
+                          style={[
+                            styles.terrainCell,
+                            {
+                              backgroundColor: cell.terrainColor,
+                              height: biomeCellSize + 0.6,
+                              left: cell.col * biomeCellSize,
+                              top: cell.row * biomeCellSize,
+                              width: biomeCellSize + 0.6,
+                            },
+                          ]}
+                        />
+                      ))
+                    : null}
+
+                  {showBiomes
+                    ? biomeCells.map((cell) => (
+                        <View
+                          key={`biome-${cell.row}-${cell.col}`}
+                          style={[
+                            styles.biomeCell,
+                            {
+                              backgroundColor: cell.biomeColor,
+                              height: biomeCellSize + 0.6,
+                              left: cell.col * biomeCellSize,
+                              top: cell.row * biomeCellSize,
+                              width: biomeCellSize + 0.6,
+                            },
+                          ]}
+                        />
+                      ))
+                    : null}
+
+                  {showGrid ? gridLines.map((line, i) => <View key={`h-${i}`} style={[styles.gridH, { top: line }]} />) : null}
+                  {showGrid ? gridLines.map((line, i) => <View key={`v-${i}`} style={[styles.gridV, { left: line }]} />) : null}
+
+                  <View style={[styles.axisH, { top: mapSize / 2 }]} />
+                  <View style={[styles.axisV, { left: mapSize / 2 }]} />
+
+                  {cursor.active ? <View style={[styles.cursorLineVertical, { left: cursor.canvasX }]} /> : null}
+                  {cursor.active ? <View style={[styles.cursorLineHorizontal, { top: cursor.canvasY }]} /> : null}
+
+                  {markers.map((marker) => (
+                    <View key={marker.id}>
+                      <Pressable onPress={() => setSelectedMarkerId(marker.id)} style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}>
+                        <View style={[styles.marker, selectedMarkerId === marker.id && styles.markerSelected, { backgroundColor: marker.color }]} />
+                      </Pressable>
+                      {showLabels ? (
+                        <Text style={[styles.markerLabel, { left: marker.left + 8, top: marker.top - 6 }]}>{shortLabel(marker.layer.name)}</Text>
+                      ) : null}
+                    </View>
+                  ))}
+
+                  <View style={[styles.center, { left: mapSize / 2 - 7, top: mapSize / 2 - 7 }]} />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.cursorBar}>
+              <Text style={styles.cursorText}>
+                Cursor X: {Math.round(cursor.worldX)} | Y/Z: {Math.round(cursor.worldZ)} | Bioma:{' '}
+                {cursorCellInfo?.biomeName ?? centerBiome?.biomeName ?? 'N/A'} | Terreno:{' '}
+                {cursorCellInfo?.terrainName ?? centerTerrain?.terrainName ?? 'N/A'}
+              </Text>
             </View>
 
             <Text style={styles.helperText}>
               Escala aprox: {scalePerCell} bloques por division | Puntos: {markers.length}
               {centerBiome ? ` | Bioma centro: ${centerBiome.biomeName}` : ''}
+              {centerTerrain ? ` | Terreno centro: ${centerTerrain.terrainName}` : ''}
             </Text>
 
             {showBiomes && biomeSummary.length ? (
@@ -654,6 +902,19 @@ export function SeedMapScreen() {
                     <View style={[styles.biomeLegendDot, { backgroundColor: entry.biomeColor }]} />
                     <Text style={styles.biomeLegendText}>
                       {entry.biomeName} {entry.percent}%
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {showTerrain && terrainSummary.length ? (
+              <View style={styles.terrainLegendWrap}>
+                {terrainSummary.map((entry) => (
+                  <View key={entry.terrainId} style={styles.terrainLegendChip}>
+                    <View style={[styles.terrainLegendDot, { backgroundColor: entry.terrainColor }]} />
+                    <Text style={styles.terrainLegendText}>
+                      {entry.terrainName} {entry.percent}%
                     </Text>
                   </View>
                 ))}
@@ -672,13 +933,15 @@ export function SeedMapScreen() {
                 </Text>
                 <Text style={styles.layerMeta}>Loot/utilidad: {selectedMarker.layer.lootHint}</Text>
                 <Text style={styles.layerMeta}>Bioma local: {selectedBiome?.biomeName ?? 'Sin dato'}</Text>
+                <Text style={styles.layerMeta}>Terreno local: {selectedTerrain?.terrainName ?? 'Sin dato'}</Text>
                 <Pressable onPress={focusMarker} style={[styles.actionBtn, styles.actionGood]}>
                   <Text style={styles.actionTxt}>Centrar mapa aqui</Text>
                 </Pressable>
               </View>
             ) : (
               <Text style={styles.empty}>
-                Bioma centro: {centerBiome?.biomeName ?? 'N/A'}. Toca un marcador para ver detalle completo.
+                Bioma centro: {centerBiome?.biomeName ?? 'N/A'} | Terreno centro: {centerTerrain?.terrainName ?? 'N/A'}.
+                Toca un marcador para ver detalle completo.
               </Text>
             )}
           </>
@@ -699,6 +962,7 @@ export function SeedMapScreen() {
                     X {Math.round(entry.x)} | Z {Math.round(entry.z)} | Distancia {entry.distance} bloques
                   </Text>
                   <Text style={styles.layerMeta}>Bioma: {entry.biome.biomeName}</Text>
+                  <Text style={styles.layerMeta}>Terreno: {entry.terrain.terrainName}</Text>
                   <Text style={styles.layerMeta}>Loot/utilidad: {entry.layer.lootHint}</Text>
                 </View>
               </Pressable>
@@ -787,7 +1051,62 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   searchBtnTxt: { color: palette.primaryDark, fontFamily: font.display, fontSize: 12 },
-  mapWrap: { alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
+  mapFrame: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+    width: '100%',
+  },
+  mapRowWrap: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  topRuler: {
+    backgroundColor: '#F4EFD7',
+    borderColor: '#C8BA8F',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    height: 28,
+    position: 'relative',
+  },
+  leftRuler: {
+    backgroundColor: '#F4EFD7',
+    borderColor: '#C8BA8F',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    minWidth: 62,
+    position: 'relative',
+    width: 62,
+  },
+  axisTitleTop: {
+    color: palette.secondary,
+    fontFamily: font.display,
+    fontSize: 10,
+    left: 6,
+    position: 'absolute',
+    top: 6,
+  },
+  axisTitleLeft: {
+    color: palette.secondary,
+    fontFamily: font.display,
+    fontSize: 10,
+    left: 6,
+    position: 'absolute',
+    top: 6,
+  },
+  rulerText: {
+    color: palette.text,
+    fontSize: 9,
+    position: 'absolute',
+    top: 13,
+  },
+  rulerTextVertical: {
+    color: palette.text,
+    fontSize: 9,
+    left: 7,
+    position: 'absolute',
+  },
   mapCanvas: {
     backgroundColor: '#102218',
     borderColor: '#3E5E45',
@@ -799,6 +1118,38 @@ const styles = StyleSheet.create({
   biomeCell: {
     opacity: 0.72,
     position: 'absolute',
+  },
+  terrainCell: {
+    opacity: 0.9,
+    position: 'absolute',
+  },
+  cursorLineHorizontal: {
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    height: 1,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+  },
+  cursorLineVertical: {
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    bottom: 0,
+    position: 'absolute',
+    top: 0,
+    width: 1,
+  },
+  cursorBar: {
+    backgroundColor: '#F4EFD7',
+    borderColor: '#C8BA8F',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  cursorText: {
+    color: palette.text,
+    fontFamily: font.display,
+    fontSize: 10,
   },
   biomeLegendWrap: {
     flexDirection: 'row',
@@ -823,6 +1174,32 @@ const styles = StyleSheet.create({
     width: 10,
   },
   biomeLegendText: {
+    color: palette.text,
+    fontSize: 10,
+  },
+  terrainLegendWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  terrainLegendChip: {
+    alignItems: 'center',
+    backgroundColor: '#ECE8D3',
+    borderColor: '#BEB18A',
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  terrainLegendDot: {
+    borderRadius: 5,
+    height: 10,
+    width: 10,
+  },
+  terrainLegendText: {
     color: palette.text,
     fontSize: 10,
   },
