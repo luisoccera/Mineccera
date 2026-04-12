@@ -4,10 +4,13 @@ import { SectionCard } from '../components/SectionCard';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
 import {
+  generateBiomeCells,
   generateStructurePoints,
+  getBiomeAtPoint,
   structureCategories,
   structureDistance,
   structureLayers,
+  type BiomeCell,
   type SeedDimension,
   type SeedEdition,
   type StructureCategory,
@@ -96,6 +99,14 @@ interface Marker {
   z: number;
 }
 
+interface BiomeSummary {
+  biomeColor: string;
+  biomeId: string;
+  biomeName: string;
+  count: number;
+  percent: number;
+}
+
 export function SeedMapScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -112,6 +123,7 @@ export function SeedMapScreen() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [showGrid, setShowGrid] = useState(true);
+  const [showBiomes, setShowBiomes] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
@@ -171,6 +183,8 @@ export function SeedMapScreen() {
     const sidePadding = compact ? 36 : 72;
     return Math.max(260, Math.min(width - sidePadding, compact ? 390 : 680));
   }, [compact, width]);
+  const biomeCellsPerSide = compact ? 18 : 24;
+  const biomeCellSize = mapSize / biomeCellsPerSide;
 
   const effectiveRadius = Math.max(400, Math.round(applied.radius / zoom));
 
@@ -196,6 +210,22 @@ export function SeedMapScreen() {
           })
         : [],
     [activeLayers, applied.centerX, applied.centerZ, applied.seed, dimension, edition, effectiveRadius, hasSearched]
+  );
+
+  const biomeCells = useMemo<BiomeCell[]>(
+    () =>
+      hasSearched
+        ? generateBiomeCells({
+            centerX: applied.centerX,
+            centerZ: applied.centerZ,
+            dimension,
+            edition,
+            radius: effectiveRadius,
+            samplesPerSide: biomeCellsPerSide,
+            seed: applied.seed,
+          })
+        : [],
+    [applied.centerX, applied.centerZ, applied.seed, biomeCellsPerSide, dimension, edition, effectiveRadius, hasSearched]
   );
 
   const markers = useMemo(() => {
@@ -226,7 +256,23 @@ export function SeedMapScreen() {
       .filter((marker): marker is Marker => marker !== null);
   }, [applied.centerX, applied.centerZ, effectiveRadius, layerById, mapSize, rawPoints]);
 
-  const nearest = useMemo(() => [...markers].sort((a, b) => a.distance - b.distance).slice(0, 28), [markers]);
+  const nearest = useMemo(
+    () =>
+      [...markers]
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 28)
+        .map((entry) => ({
+          ...entry,
+          biome: getBiomeAtPoint({
+            dimension,
+            edition,
+            seed: applied.seed,
+            x: entry.x,
+            z: entry.z,
+          }),
+        })),
+    [applied.seed, dimension, edition, markers]
+  );
 
   const statsByLayer = useMemo(() => {
     const stats = new Map<string, { count: number; nearest: number }>();
@@ -247,6 +293,64 @@ export function SeedMapScreen() {
     () => markers.find((marker) => marker.id === selectedMarkerId) ?? null,
     [markers, selectedMarkerId]
   );
+  const centerBiome = useMemo(
+    () =>
+      hasSearched
+        ? getBiomeAtPoint({
+            dimension,
+            edition,
+            seed: applied.seed,
+            x: applied.centerX,
+            z: applied.centerZ,
+          })
+        : null,
+    [applied.centerX, applied.centerZ, applied.seed, dimension, edition, hasSearched]
+  );
+  const selectedBiome = useMemo(
+    () =>
+      selectedMarker
+        ? getBiomeAtPoint({
+            dimension,
+            edition,
+            seed: applied.seed,
+            x: selectedMarker.x,
+            z: selectedMarker.z,
+          })
+        : null,
+    [applied.seed, dimension, edition, selectedMarker]
+  );
+
+  const biomeSummary = useMemo<BiomeSummary[]>(() => {
+    if (!biomeCells.length) {
+      return [];
+    }
+
+    const grouped = new Map<string, BiomeSummary>();
+    for (const cell of biomeCells) {
+      const current = grouped.get(cell.biomeId);
+      if (!current) {
+        grouped.set(cell.biomeId, {
+          biomeColor: cell.biomeColor,
+          biomeId: cell.biomeId,
+          biomeName: cell.biomeName,
+          count: 1,
+          percent: 0,
+        });
+      } else {
+        current.count += 1;
+        grouped.set(cell.biomeId, current);
+      }
+    }
+
+    const total = biomeCells.length;
+    return [...grouped.values()]
+      .map((entry) => ({
+        ...entry,
+        percent: Math.max(1, Math.round((entry.count / total) * 100)),
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [biomeCells]);
 
   useEffect(() => {
     if (selectedMarkerId && !markers.some((marker) => marker.id === selectedMarkerId)) {
@@ -487,6 +591,9 @@ export function SeedMapScreen() {
         ) : (
           <>
             <View style={styles.chips}>
+              <Pressable onPress={() => setShowBiomes((v) => !v)} style={[styles.chip, showBiomes && styles.chipActive]}>
+                <Text style={[styles.chipText, showBiomes && styles.chipTextActive]}>{showBiomes ? 'Biomas ON' : 'Biomas OFF'}</Text>
+              </Pressable>
               <Pressable onPress={() => setShowGrid((v) => !v)} style={[styles.chip, showGrid && styles.chipActive]}>
                 <Text style={[styles.chipText, showGrid && styles.chipTextActive]}>{showGrid ? 'Cuadricula ON' : 'Cuadricula OFF'}</Text>
               </Pressable>
@@ -497,6 +604,23 @@ export function SeedMapScreen() {
 
             <View style={[styles.mapWrap, { height: mapSize + 8 }]}>
               <View style={[styles.mapCanvas, { height: mapSize, width: mapSize }]}>
+                {showBiomes
+                  ? biomeCells.map((cell) => (
+                      <View
+                        key={`biome-${cell.row}-${cell.col}`}
+                        style={[
+                          styles.biomeCell,
+                          {
+                            backgroundColor: cell.biomeColor,
+                            height: biomeCellSize + 0.6,
+                            left: cell.col * biomeCellSize,
+                            top: cell.row * biomeCellSize,
+                            width: biomeCellSize + 0.6,
+                          },
+                        ]}
+                      />
+                    ))
+                  : null}
                 {showGrid ? gridLines.map((line, i) => <View key={`h-${i}`} style={[styles.gridH, { top: line }]} />) : null}
                 {showGrid ? gridLines.map((line, i) => <View key={`v-${i}`} style={[styles.gridV, { left: line }]} />) : null}
 
@@ -518,7 +642,23 @@ export function SeedMapScreen() {
               </View>
             </View>
 
-            <Text style={styles.helperText}>Escala aprox: {scalePerCell} bloques por division | Puntos: {markers.length}</Text>
+            <Text style={styles.helperText}>
+              Escala aprox: {scalePerCell} bloques por division | Puntos: {markers.length}
+              {centerBiome ? ` | Bioma centro: ${centerBiome.biomeName}` : ''}
+            </Text>
+
+            {showBiomes && biomeSummary.length ? (
+              <View style={styles.biomeLegendWrap}>
+                {biomeSummary.map((entry) => (
+                  <View key={entry.biomeId} style={styles.biomeLegendChip}>
+                    <View style={[styles.biomeLegendDot, { backgroundColor: entry.biomeColor }]} />
+                    <Text style={styles.biomeLegendText}>
+                      {entry.biomeName} {entry.percent}%
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
             {selectedMarker ? (
               <View style={styles.selectedCard}>
@@ -531,12 +671,15 @@ export function SeedMapScreen() {
                   X {Math.round(selectedMarker.x)} / Z {Math.round(selectedMarker.z)} | Distancia: {selectedMarker.distance} bloques
                 </Text>
                 <Text style={styles.layerMeta}>Loot/utilidad: {selectedMarker.layer.lootHint}</Text>
+                <Text style={styles.layerMeta}>Bioma local: {selectedBiome?.biomeName ?? 'Sin dato'}</Text>
                 <Pressable onPress={focusMarker} style={[styles.actionBtn, styles.actionGood]}>
                   <Text style={styles.actionTxt}>Centrar mapa aqui</Text>
                 </Pressable>
               </View>
             ) : (
-              <Text style={styles.empty}>Toca un marcador para ver detalle completo.</Text>
+              <Text style={styles.empty}>
+                Bioma centro: {centerBiome?.biomeName ?? 'N/A'}. Toca un marcador para ver detalle completo.
+              </Text>
             )}
           </>
         )}
@@ -555,6 +698,7 @@ export function SeedMapScreen() {
                   <Text style={styles.layerMeta}>
                     X {Math.round(entry.x)} | Z {Math.round(entry.z)} | Distancia {entry.distance} bloques
                   </Text>
+                  <Text style={styles.layerMeta}>Bioma: {entry.biome.biomeName}</Text>
                   <Text style={styles.layerMeta}>Loot/utilidad: {entry.layer.lootHint}</Text>
                 </View>
               </Pressable>
@@ -651,6 +795,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     position: 'relative',
+  },
+  biomeCell: {
+    opacity: 0.72,
+    position: 'absolute',
+  },
+  biomeLegendWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  biomeLegendChip: {
+    alignItems: 'center',
+    backgroundColor: '#F4EFD7',
+    borderColor: '#C8BA8F',
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  biomeLegendDot: {
+    borderRadius: 5,
+    height: 10,
+    width: 10,
+  },
+  biomeLegendText: {
+    color: palette.text,
+    fontSize: 10,
   },
   gridH: { backgroundColor: 'rgba(255,255,255,0.14)', height: 1, left: 0, position: 'absolute', right: 0 },
   gridV: { backgroundColor: 'rgba(255,255,255,0.14)', width: 1, top: 0, bottom: 0, position: 'absolute' },

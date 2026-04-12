@@ -32,6 +32,22 @@ export interface StructurePoint {
   z: number;
 }
 
+export interface BiomeCell {
+  biomeColor: string;
+  biomeId: string;
+  biomeName: string;
+  col: number;
+  row: number;
+  x: number;
+  z: number;
+}
+
+interface BiomeDefinition {
+  color: string;
+  id: string;
+  name: string;
+}
+
 const layerSeedSalt = 0x9e3779b9;
 
 export const structureCategories: StructureCategoryMeta[] = [
@@ -455,6 +471,271 @@ const distanceSq = (x1: number, z1: number, x2: number, z2: number) => {
   const dx = x1 - x2;
   const dz = z1 - z2;
   return dx * dx + dz * dz;
+};
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+const smoothstep = (t: number) => t * t * (3 - 2 * t);
+
+const hash2D = (seed: number, x: number, z: number, salt: number) => {
+  let h =
+    seed ^
+    Math.imul((x ^ salt) + 0x7feb352d, 0x9e3779b1) ^
+    Math.imul((z + salt) ^ 0x846ca68b, 0x85ebca77);
+  h = (h ^ (h >>> 16)) >>> 0;
+  h = Math.imul(h, 0x7feb352d) >>> 0;
+  h = (h ^ (h >>> 15)) >>> 0;
+  h = Math.imul(h, 0x846ca68b) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+};
+
+const valueNoise = (seed: number, x: number, z: number, scale: number, salt: number) => {
+  const scaledX = x / scale;
+  const scaledZ = z / scale;
+  const x0 = Math.floor(scaledX);
+  const z0 = Math.floor(scaledZ);
+  const x1 = x0 + 1;
+  const z1 = z0 + 1;
+  const fx = smoothstep(scaledX - x0);
+  const fz = smoothstep(scaledZ - z0);
+
+  const v00 = hash2D(seed, x0, z0, salt) / 0xffffffff;
+  const v10 = hash2D(seed, x1, z0, salt) / 0xffffffff;
+  const v01 = hash2D(seed, x0, z1, salt) / 0xffffffff;
+  const v11 = hash2D(seed, x1, z1, salt) / 0xffffffff;
+
+  const top = lerp(v00, v10, fx);
+  const bottom = lerp(v01, v11, fx);
+  return lerp(top, bottom, fz);
+};
+
+const overworldBiomes: BiomeDefinition[] = [
+  { color: '#87AE50', id: 'plains', name: 'Plains' },
+  { color: '#3F8F41', id: 'forest', name: 'Forest' },
+  { color: '#78B85D', id: 'birch-forest', name: 'Birch Forest' },
+  { color: '#55734E', id: 'taiga', name: 'Taiga' },
+  { color: '#D8ECF8', id: 'snowy-plains', name: 'Snowy Plains' },
+  { color: '#BFE4FF', id: 'ice-spikes', name: 'Ice Spikes' },
+  { color: '#E4CD7B', id: 'desert', name: 'Desert' },
+  { color: '#C2A854', id: 'savanna', name: 'Savanna' },
+  { color: '#2C8D49', id: 'jungle', name: 'Jungle' },
+  { color: '#4B6A42', id: 'swamp', name: 'Swamp' },
+  { color: '#C27A4F', id: 'badlands', name: 'Badlands' },
+  { color: '#D9A2C7', id: 'cherry-grove', name: 'Cherry Grove' },
+  { color: '#98A58F', id: 'windswept', name: 'Windswept Hills' },
+  { color: '#E4EEF5', id: 'frozen-peaks', name: 'Frozen Peaks' },
+  { color: '#3D73B5', id: 'ocean', name: 'Ocean' },
+  { color: '#4E9DCD', id: 'warm-ocean', name: 'Warm Ocean' },
+  { color: '#2A4E84', id: 'deep-ocean', name: 'Deep Ocean' },
+];
+
+const netherBiomes: BiomeDefinition[] = [
+  { color: '#8A3B2F', id: 'nether-wastes', name: 'Nether Wastes' },
+  { color: '#A52747', id: 'crimson-forest', name: 'Crimson Forest' },
+  { color: '#2D978C', id: 'warped-forest', name: 'Warped Forest' },
+  { color: '#75717B', id: 'soul-sand-valley', name: 'Soul Sand Valley' },
+  { color: '#5E5050', id: 'basalt-deltas', name: 'Basalt Deltas' },
+  { color: '#C54A1E', id: 'lava-sea', name: 'Lava Sea' },
+];
+
+const endBiomes: BiomeDefinition[] = [
+  { color: '#C8C192', id: 'end-highlands', name: 'End Highlands' },
+  { color: '#B4AF82', id: 'end-midlands', name: 'End Midlands' },
+  { color: '#9C9772', id: 'end-barrens', name: 'End Barrens' },
+  { color: '#8A8568', id: 'small-end-islands', name: 'Small End Islands' },
+  { color: '#3E374C', id: 'void', name: 'The Void' },
+];
+
+const biomeById = new Map<string, BiomeDefinition>(
+  [...overworldBiomes, ...netherBiomes, ...endBiomes].map((biome) => [biome.id, biome])
+);
+
+const getBiome = (id: string) =>
+  biomeById.get(id) || {
+    color: '#5D5D5D',
+    id: 'unknown',
+    name: 'Unknown',
+  };
+
+const overworldBiomeAt = (seedValue: number, x: number, z: number): BiomeDefinition => {
+  const continentalness = valueNoise(seedValue, x, z, 1850, 0x1234);
+  const temperature = valueNoise(seedValue, x, z, 1200, 0x2345);
+  const humidity = valueNoise(seedValue, x, z, 1120, 0x3456);
+  const erosion = valueNoise(seedValue, x, z, 860, 0x4567);
+  const weirdness = valueNoise(seedValue, x, z, 560, 0x5678);
+
+  if (continentalness < 0.24) {
+    if (continentalness < 0.12) {
+      return getBiome('deep-ocean');
+    }
+    if (temperature > 0.67) {
+      return getBiome('warm-ocean');
+    }
+    return getBiome('ocean');
+  }
+
+  if (erosion > 0.83) {
+    if (temperature < 0.36) {
+      return getBiome('frozen-peaks');
+    }
+    return getBiome('windswept');
+  }
+
+  if (temperature < 0.2) {
+    if (humidity < 0.48) {
+      return getBiome('snowy-plains');
+    }
+    return weirdness > 0.72 ? getBiome('ice-spikes') : getBiome('taiga');
+  }
+
+  if (temperature < 0.38) {
+    if (humidity > 0.66) {
+      return getBiome('taiga');
+    }
+    return weirdness > 0.64 ? getBiome('birch-forest') : getBiome('forest');
+  }
+
+  if (temperature < 0.62) {
+    if (humidity > 0.74) {
+      return getBiome('swamp');
+    }
+    if (weirdness > 0.7) {
+      return getBiome('cherry-grove');
+    }
+    return humidity > 0.52 ? getBiome('forest') : getBiome('plains');
+  }
+
+  if (temperature < 0.78) {
+    if (humidity > 0.72) {
+      return getBiome('jungle');
+    }
+    return humidity > 0.42 ? getBiome('savanna') : getBiome('plains');
+  }
+
+  if (humidity > 0.66) {
+    return getBiome('jungle');
+  }
+
+  return humidity < 0.28 ? getBiome('badlands') : getBiome('desert');
+};
+
+const netherBiomeAt = (seedValue: number, x: number, z: number): BiomeDefinition => {
+  const heat = valueNoise(seedValue, x, z, 900, 0x6789);
+  const ash = valueNoise(seedValue, x, z, 620, 0x789a);
+  const fungus = valueNoise(seedValue, x, z, 560, 0x89ab);
+
+  if (heat < 0.18) {
+    return getBiome('lava-sea');
+  }
+  if (ash > 0.74) {
+    return getBiome('basalt-deltas');
+  }
+  if (fungus > 0.72) {
+    return getBiome('warped-forest');
+  }
+  if (heat > 0.76 && fungus < 0.42) {
+    return getBiome('crimson-forest');
+  }
+  if (ash > 0.56 && heat < 0.55) {
+    return getBiome('soul-sand-valley');
+  }
+  return getBiome('nether-wastes');
+};
+
+const endBiomeAt = (seedValue: number, x: number, z: number): BiomeDefinition => {
+  const distanceFromOrigin = Math.sqrt(x * x + z * z);
+  const islands = valueNoise(seedValue, x, z, 1200, 0x9abc);
+  const ridges = valueNoise(seedValue, x, z, 700, 0xabcd);
+
+  if (distanceFromOrigin < 850) {
+    return getBiome('void');
+  }
+  if (islands < 0.23) {
+    return getBiome('small-end-islands');
+  }
+  if (ridges > 0.75) {
+    return getBiome('end-highlands');
+  }
+  if (ridges > 0.48) {
+    return getBiome('end-midlands');
+  }
+  return getBiome('end-barrens');
+};
+
+export const getBiomeAtPoint = ({
+  dimension,
+  edition,
+  seed,
+  x,
+  z,
+}: {
+  dimension: SeedDimension;
+  edition: SeedEdition;
+  seed: string;
+  x: number;
+  z: number;
+}) => {
+  const seedValue = parseSeedValue(seed) ^ (edition === 'java_1_21' ? 0x1337babe : 0x5eedbabe);
+  let biome: BiomeDefinition;
+
+  if (dimension === 'nether') {
+    biome = netherBiomeAt(seedValue, x, z);
+  } else if (dimension === 'end') {
+    biome = endBiomeAt(seedValue, x, z);
+  } else {
+    biome = overworldBiomeAt(seedValue, x, z);
+  }
+
+  return {
+    biomeColor: biome.color,
+    biomeId: biome.id,
+    biomeName: biome.name,
+    x,
+    z,
+  };
+};
+
+export const generateBiomeCells = ({
+  centerX,
+  centerZ,
+  dimension,
+  edition,
+  radius,
+  samplesPerSide,
+  seed,
+}: {
+  centerX: number;
+  centerZ: number;
+  dimension: SeedDimension;
+  edition: SeedEdition;
+  radius: number;
+  samplesPerSide: number;
+  seed: string;
+}) => {
+  const cells: BiomeCell[] = [];
+  const span = radius * 2;
+
+  for (let row = 0; row < samplesPerSide; row += 1) {
+    for (let col = 0; col < samplesPerSide; col += 1) {
+      const normalizedX = (col + 0.5) / samplesPerSide;
+      const normalizedZ = (row + 0.5) / samplesPerSide;
+      const x = centerX - radius + span * normalizedX;
+      const z = centerZ - radius + span * normalizedZ;
+      const biome = getBiomeAtPoint({ dimension, edition, seed, x, z });
+
+      cells.push({
+        biomeColor: biome.biomeColor,
+        biomeId: biome.biomeId,
+        biomeName: biome.biomeName,
+        col,
+        row,
+        x,
+        z,
+      });
+    }
+  }
+
+  return cells;
 };
 
 let pointCounter = 0;
