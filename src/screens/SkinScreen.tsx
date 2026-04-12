@@ -1,222 +1,172 @@
 import * as Linking from 'expo-linking';
-import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { SectionCard } from '../components/SectionCard';
-import { searchMinecraftSkins, type SkinResult } from '../data/skins';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
 
-const MAX_AUTO_PAGES = 12;
+type SkinSortMode = 'latest' | 'mostvoted';
 
-const mergeUniqueSkins = (current: SkinResult[], incoming: SkinResult[]) => {
-  const seen = new Set(current.map((skin) => skin.skinUrl));
-  const merged = [...current];
-  for (const skin of incoming) {
-    if (seen.has(skin.skinUrl)) {
-      continue;
-    }
-    seen.add(skin.skinUrl);
-    merged.push(skin);
-  }
-  return merged;
+const WEBVIEW_HEIGHT = 940;
+
+const sanitizeQueryForPath = (input: string) =>
+  input
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const buildSearchUrl = (queryPath: string, page: number, mode: SkinSortMode) => {
+  const base = mode === 'latest' ? 'search/skin' : 'search/mostvotedskin';
+  return `https://www.minecraftskins.com/${base}/${queryPath}/${page}/`;
+};
+
+const Iframe = (props: { src: string }) => {
+  const Tag = 'iframe' as unknown as any;
+  return (
+    <Tag
+      allow="clipboard-write; fullscreen"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+      src={props.src}
+      style={{
+        backgroundColor: '#101010',
+        border: '0',
+        borderRadius: `${radius.md}px`,
+        height: `${WEBVIEW_HEIGHT}px`,
+        width: '100%',
+      }}
+      title="MinecraftSkins Search"
+    />
+  );
 };
 
 export function SkinScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
-  const tablet = deviceClass === 'tablet';
-  const [query, setQuery] = useState('');
-  const [searchedQuery, setSearchedQuery] = useState('');
-  const [results, setResults] = useState<SkinResult[]>([]);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [hasNextPage, setHasNextPage] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadingAll, setLoadingAll] = useState(false);
-  const [error, setError] = useState('');
+  const [query, setQuery] = useState('spider man');
+  const [activeQueryPath, setActiveQueryPath] = useState('spider-man');
+  const [page, setPage] = useState(1);
+  const [mode, setMode] = useState<SkinSortMode>('latest');
+  const [viewerKey, setViewerKey] = useState(1);
 
-  const runSearch = async () => {
-    const cleanQuery = query.trim();
-    if (!cleanQuery) {
-      setError('Escribe algo para buscar skins.');
-      setResults([]);
-      setCurrentPage(0);
-      setSearchedQuery('');
-      setHasNextPage(false);
+  const embeddedUrl = useMemo(
+    () => buildSearchUrl(activeQueryPath, page, mode),
+    [activeQueryPath, mode, page]
+  );
+
+  const runSearch = () => {
+    const cleanPath = sanitizeQueryForPath(query);
+    if (!cleanPath) {
       return;
     }
-
-    setLoading(true);
-    setError('');
-    setResults([]);
-    setCurrentPage(0);
-    setHasNextPage(false);
-    setSearchedQuery(cleanQuery);
-
-    try {
-      const firstPage = await searchMinecraftSkins(cleanQuery, 1);
-      setResults(firstPage.results);
-      setCurrentPage(1);
-      setHasNextPage(firstPage.hasNextPage);
-      if (!firstPage.results.length) {
-        setError('No encontramos skins para esa busqueda.');
-      }
-    } catch {
-      setError('No se pudo cargar MinecraftSkins en este momento. Intenta de nuevo.');
-    } finally {
-      setLoading(false);
-    }
+    setActiveQueryPath(cleanPath);
+    setPage(1);
+    setViewerKey((k) => k + 1);
   };
 
-  const loadMore = async () => {
-    if (!searchedQuery || !hasNextPage || loading || loadingMore || loadingAll) {
-      return;
-    }
-
-    const nextPage = currentPage + 1;
-    setLoadingMore(true);
-    setError('');
-
-    try {
-      const response = await searchMinecraftSkins(searchedQuery, nextPage);
-      setResults((current) => mergeUniqueSkins(current, response.results));
-      setCurrentPage(nextPage);
-      setHasNextPage(response.hasNextPage);
-      if (!response.results.length && !response.hasNextPage) {
-        setError('No hay mas skins en esta consulta.');
-      }
-    } catch {
-      setError('No se pudo cargar la siguiente pagina.');
-    } finally {
-      setLoadingMore(false);
-    }
+  const goPrev = () => {
+    setPage((p) => Math.max(1, p - 1));
+    setViewerKey((k) => k + 1);
   };
 
-  const loadAll = async () => {
-    if (!searchedQuery || !hasNextPage || loading || loadingMore || loadingAll) {
-      return;
-    }
-
-    setLoadingAll(true);
-    setError('');
-    let page = currentPage;
-    let keepGoing: boolean = hasNextPage;
-
-    try {
-      while (keepGoing && page < MAX_AUTO_PAGES) {
-        const nextPage = page + 1;
-        const response = await searchMinecraftSkins(searchedQuery, nextPage);
-        setResults((current) => mergeUniqueSkins(current, response.results));
-        page = nextPage;
-        keepGoing = response.hasNextPage;
-        setCurrentPage(page);
-        setHasNextPage(keepGoing);
-      }
-
-      if (keepGoing && page >= MAX_AUTO_PAGES) {
-        setError(`Se cargaron ${MAX_AUTO_PAGES} paginas para evitar bloqueo temporal. Usa "Cargar mas".`);
-      }
-    } catch {
-      setError('Se corto la carga completa. Puedes continuar con "Cargar mas".');
-    } finally {
-      setLoadingAll(false);
-    }
+  const goNext = () => {
+    setPage((p) => p + 1);
+    setViewerKey((k) => k + 1);
   };
 
-  const openUrl = async (url: string, fallbackMessage: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch {
-      setError(fallbackMessage);
-    }
+  const applyMode = (nextMode: SkinSortMode) => {
+    setMode(nextMode);
+    setPage(1);
+    setViewerKey((k) => k + 1);
   };
 
   return (
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
       <SectionCard
-        subtitle="Busca skins reales en MinecraftSkins.com, mira miniatura y descarga el PNG"
+        subtitle="Busqueda integrada en MinecraftSkins.com con paginacion para ver muchas skins"
         title="Buscador De Skins"
       >
         <Text style={[styles.label, compact && styles.labelCompact]}>Buscar skin</Text>
         <TextInput
           onChangeText={setQuery}
-          placeholder="Ej: steve, anime, creeper, knight..."
+          placeholder="Ej: spider man, anime, knight, creeper..."
           placeholderTextColor={palette.muted}
           style={[styles.input, compact && styles.inputCompact]}
           value={query}
         />
 
-        <View style={[styles.actionsRow, compact && styles.actionsRowCompact]}>
-          <Pressable onPress={runSearch} style={[styles.actionButton, styles.actionPrimary]}>
-            <Text style={styles.actionButtonText}>Buscar</Text>
+        <View style={[styles.controlsRow, compact && styles.controlsRowCompact]}>
+          <Pressable onPress={runSearch} style={[styles.button, styles.buttonPrimary]}>
+            <Text style={styles.buttonText}>Buscar</Text>
           </Pressable>
-          <Pressable disabled={!hasNextPage || loading || loadingMore || loadingAll} onPress={loadMore} style={[styles.actionButton, styles.actionSecondary, (!hasNextPage || loading || loadingMore || loadingAll) && styles.actionDisabled]}>
-            <Text style={styles.actionButtonText}>Cargar mas</Text>
+          <Pressable onPress={goPrev} style={[styles.button, styles.buttonSecondary]}>
+            <Text style={styles.buttonText}>Pagina -</Text>
           </Pressable>
-          <Pressable disabled={!hasNextPage || loading || loadingMore || loadingAll} onPress={loadAll} style={[styles.actionButton, styles.actionNeutral, (!hasNextPage || loading || loadingMore || loadingAll) && styles.actionDisabled]}>
-            <Text style={styles.actionButtonText}>Traer todo</Text>
+          <Pressable onPress={goNext} style={[styles.button, styles.buttonSecondary]}>
+            <Text style={styles.buttonText}>Pagina +</Text>
           </Pressable>
         </View>
 
-        {loading || loadingMore || loadingAll ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={palette.primary} />
-            <Text style={styles.loadingText}>
-              {loading ? 'Buscando skins...' : loadingAll ? 'Cargando todas las paginas...' : 'Cargando mas skins...'}
-            </Text>
-          </View>
-        ) : null}
+        <View style={styles.chips}>
+          <Pressable onPress={() => applyMode('latest')} style={[styles.chip, mode === 'latest' && styles.chipActive]}>
+            <Text style={[styles.chipText, mode === 'latest' && styles.chipTextActive]}>Latest</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => applyMode('mostvoted')}
+            style={[styles.chip, mode === 'mostvoted' && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, mode === 'mostvoted' && styles.chipTextActive]}>Most Voted</Text>
+          </Pressable>
+        </View>
 
-        {searchedQuery ? (
-          <Text style={styles.metaText}>
-            Consulta: "{searchedQuery}" | Pagina actual: {currentPage || 1} | Resultados: {results.length}
-          </Text>
-        ) : null}
+        <Text style={styles.metaText}>
+          Consulta: "{activeQueryPath.replace(/-/g, ' ')}" | Pagina: {page} | Modo:{' '}
+          {mode === 'latest' ? 'Latest' : 'Most Voted'}
+        </Text>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        <View style={[styles.controlsRow, compact && styles.controlsRowCompact]}>
+          <Pressable onPress={() => setViewerKey((k) => k + 1)} style={[styles.button, styles.buttonNeutral]}>
+            <Text style={styles.buttonText}>Recargar visor</Text>
+          </Pressable>
+          <Pressable onPress={() => Linking.openURL(embeddedUrl)} style={[styles.button, styles.buttonNeutral]}>
+            <Text style={styles.buttonText}>Abrir en pestaña</Text>
+          </Pressable>
+        </View>
       </SectionCard>
 
       <SectionCard
-        subtitle="Miniatura, enlace original y descarga PNG por cada skin"
-        title="Resultados De MinecraftSkins"
+        subtitle="Aqui ves miniaturas del sitio y puedes entrar a cada skin para descargar PNG"
+        title="Vista Integrada De MinecraftSkins"
       >
-        {!results.length ? (
-          <Text style={styles.emptyText}>Aqui veras las skins encontradas.</Text>
+        {Platform.OS === 'web' ? (
+          <View style={styles.viewerWrap}>
+            <Iframe key={`iframe-${viewerKey}`} src={embeddedUrl} />
+          </View>
         ) : (
-          <View style={styles.resultsList}>
-            {results.map((skin) => (
-              <View key={skin.skinUrl} style={[styles.resultCard, compact && styles.resultCardCompact]}>
-                <Image source={{ uri: skin.previewUrl }} style={[styles.preview, compact && styles.previewCompact]} />
-                <View style={styles.resultBody}>
-                  <Text numberOfLines={2} style={[styles.resultTitle, compact && styles.resultTitleCompact]}>
-                    {skin.title}
-                  </Text>
-                  <Text style={styles.resultMeta}>ID: {skin.id}</Text>
-
-                  <View style={[styles.resultButtons, tablet && styles.resultButtonsTablet]}>
-                    <Pressable onPress={() => openUrl(skin.skinUrl, 'No se pudo abrir la pagina de la skin.')} style={[styles.smallButton, styles.smallButtonPrimary]}>
-                      <Text style={styles.smallButtonText}>Ver fuente</Text>
-                    </Pressable>
-                    <Pressable onPress={() => openUrl(skin.downloadUrl, 'No se pudo abrir la descarga del PNG.')} style={[styles.smallButton, styles.smallButtonSecondary]}>
-                      <Text style={styles.smallButtonText}>Descargar PNG</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-            ))}
+          <View style={styles.viewerWrap}>
+            <WebView
+              key={`webview-${viewerKey}`}
+              source={{ uri: embeddedUrl }}
+              style={styles.nativeWebview}
+              sharedCookiesEnabled
+              thirdPartyCookiesEnabled
+            />
           </View>
         )}
       </SectionCard>
 
       <Text style={styles.legalText}>
-        Fuente: MinecraftSkins.com (The Skindex). Descarga y uso de skins sujeto a autoria y terminos de su plataforma.
+        Fuente: MinecraftSkins.com (The Skindex). Para descargar: entra a una skin y usa el boton Download de su pagina.
       </Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  actionButton: {
+  button: {
     alignItems: 'center',
     borderRadius: radius.md,
     borderWidth: 1,
@@ -225,34 +175,49 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: spacing.sm,
   },
-  actionButtonText: {
+  buttonNeutral: {
+    backgroundColor: '#F2EFE4',
+    borderColor: '#C7BFA3',
+  },
+  buttonPrimary: {
+    backgroundColor: '#DFF4E8',
+    borderColor: palette.primary,
+  },
+  buttonSecondary: {
+    backgroundColor: '#EAF3FF',
+    borderColor: '#95B4D7',
+  },
+  buttonText: {
     color: palette.text,
     fontFamily: font.display,
     fontSize: 11,
     fontWeight: '700',
   },
-  actionDisabled: {
-    opacity: 0.45,
+  chip: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#C8D2F1',
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
   },
-  actionNeutral: {
-    backgroundColor: '#F1F0E4',
-    borderColor: '#B9B79D',
-  },
-  actionPrimary: {
+  chipActive: {
     backgroundColor: '#DFF4E8',
     borderColor: palette.primary,
   },
-  actionSecondary: {
-    backgroundColor: '#F2EDDF',
-    borderColor: '#C2AF87',
-  },
-  actionsRow: {
+  chips: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.xs,
     marginTop: spacing.sm,
   },
-  actionsRowCompact: {
-    flexDirection: 'column',
+  chipText: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  chipTextActive: {
+    color: palette.primaryDark,
   },
   content: {
     gap: spacing.md,
@@ -262,14 +227,13 @@ const styles = StyleSheet.create({
   contentCompact: {
     paddingHorizontal: spacing.sm,
   },
-  emptyText: {
-    color: palette.muted,
-    fontSize: 12,
+  controlsRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
   },
-  errorText: {
-    color: palette.danger,
-    fontSize: 12,
-    marginTop: spacing.xs,
+  controlsRowCompact: {
+    flexDirection: 'column',
   },
   input: {
     backgroundColor: '#F8F4EA',
@@ -298,99 +262,27 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
   },
-  loadingRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  loadingText: {
-    color: palette.muted,
-    fontSize: 11,
-  },
   metaText: {
     color: palette.secondary,
     fontSize: 11,
     marginTop: spacing.xs,
   },
+  nativeWebview: {
+    backgroundColor: '#0C0C0C',
+    borderRadius: radius.md,
+    height: WEBVIEW_HEIGHT,
+    overflow: 'hidden',
+    width: '100%',
+  },
   page: {
     backgroundColor: palette.appBackground,
     flex: 1,
   },
-  preview: {
-    backgroundColor: '#E7E7E7',
-    borderColor: '#C2AF87',
+  viewerWrap: {
+    borderColor: '#8D7A56',
     borderRadius: radius.md,
     borderWidth: 1,
-    height: 126,
-    width: 126,
-  },
-  previewCompact: {
-    alignSelf: 'center',
-    height: 132,
-    width: 132,
-  },
-  resultBody: {
-    flex: 1,
-    gap: 6,
-  },
-  resultButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  resultButtonsTablet: {
-    flexDirection: 'row',
-  },
-  resultCard: {
-    backgroundColor: '#F8F4EA',
-    borderColor: '#C2AF87',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    padding: spacing.sm,
-  },
-  resultCardCompact: {
-    flexDirection: 'column',
-  },
-  resultMeta: {
-    color: palette.muted,
-    fontSize: 11,
-  },
-  resultTitle: {
-    color: palette.text,
-    fontSize: 13,
-    fontWeight: '800',
-    lineHeight: 18,
-  },
-  resultTitleCompact: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  resultsList: {
-    gap: spacing.xs,
-  },
-  smallButton: {
-    alignItems: 'center',
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 32,
-    paddingHorizontal: spacing.sm,
-  },
-  smallButtonPrimary: {
-    backgroundColor: '#EAF3FF',
-    borderColor: '#8FB3DA',
-  },
-  smallButtonSecondary: {
-    backgroundColor: '#E8F6E9',
-    borderColor: '#8BBB8E',
-  },
-  smallButtonText: {
-    color: palette.text,
-    fontFamily: font.display,
-    fontSize: 10,
+    overflow: 'hidden',
+    width: '100%',
   },
 });
