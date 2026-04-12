@@ -5,6 +5,7 @@ import { BuildIdeasScreen } from '../screens/BuildIdeasScreen';
 import { EnchantingScreen } from '../screens/EnchantingScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { SeedMapScreen } from '../screens/SeedMapScreen';
+import { SkinScreen } from '../screens/SkinScreen';
 import { useDeviceClass } from '../responsive';
 import { font, palette } from '../theme';
 
@@ -14,6 +15,7 @@ type TabParamList = {
   Encantamientos: undefined;
   Inicio: undefined;
   Seed: undefined;
+  Skin: undefined;
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -33,9 +35,9 @@ export function MainTabs() {
         tabBarInactiveTintColor: palette.muted,
         tabBarLabelStyle: {
           fontFamily: font.body,
-          fontSize: compact ? 9 : tablet ? 10 : 11,
+          fontSize: compact ? 8 : tablet ? 10 : 11,
           fontWeight: '700',
-          lineHeight: compact ? 11 : 13,
+          lineHeight: compact ? 10 : 13,
           textAlign: 'center',
         },
         tabBarItemStyle: {
@@ -56,10 +58,11 @@ export function MainTabs() {
       })}
     >
       <Tab.Screen component={HomeScreen} name="Inicio" options={{ tabBarLabel: 'Inicio' }} />
-      <Tab.Screen component={CalculatorScreen} name="Calculadora" options={{ tabBarLabel: 'Calculo' }} />
-      <Tab.Screen component={EnchantingScreen} name="Encantamientos" options={{ tabBarLabel: 'Encantar' }} />
+      <Tab.Screen component={CalculatorScreen} name="Calculadora" options={{ tabBarLabel: 'Calcula' }} />
+      <Tab.Screen component={EnchantingScreen} name="Encantamientos" options={{ tabBarLabel: 'Encanta' }} />
       <Tab.Screen component={BuildIdeasScreen} name="Builds" options={{ tabBarLabel: 'Proyectos' }} />
-      <Tab.Screen component={SeedMapScreen} name="Seed" options={{ tabBarLabel: 'Semilla' }} />
+      <Tab.Screen component={SeedMapScreen} name="Seed" options={{ tabBarLabel: 'Seed' }} />
+      <Tab.Screen component={SkinScreen} name="Skin" options={{ tabBarLabel: 'Skins' }} />
     </Tab.Navigator>
   );
 }
@@ -74,6 +77,8 @@ function getIconName(routeName: keyof TabParamList): keyof typeof MaterialCommun
       return 'anvil';
     case 'Seed':
       return 'map-search-outline';
+    case 'Skin':
+      return 'account-box-outline';
     case 'Inicio':
     default:
       return 'pickaxe';
