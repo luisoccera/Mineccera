@@ -5,71 +5,14 @@ import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
 import {
   generateStructurePoints,
+  structureCategories,
   structureDistance,
   structureLayers,
   type SeedDimension,
   type SeedEdition,
+  type StructureCategory,
+  type StructureLayer,
 } from '../utils/seedExplorer';
-
-const normalizeCoordinateInput = (input: string) => {
-  const value = input.replace(',', '.');
-  let output = '';
-  let hasMinus = false;
-  let hasDot = false;
-  let decimals = 0;
-
-  for (const char of value) {
-    if (char >= '0' && char <= '9') {
-      if (hasDot) {
-        if (decimals < 3) {
-          output += char;
-          decimals += 1;
-        }
-      } else {
-        output += char;
-      }
-      continue;
-    }
-
-    if (char === '-' && !hasMinus && output.length === 0) {
-      output += char;
-      hasMinus = true;
-      continue;
-    }
-
-    if (char === '.' && !hasDot) {
-      output += char;
-      hasDot = true;
-      continue;
-    }
-  }
-
-  return output;
-};
-
-const normalizePositiveInt = (input: string) => input.replace(/[^\d]/g, '');
-
-const parseCoordinate = (value: string) => {
-  const parsed = Number(value);
-  if (Number.isFinite(parsed)) {
-    return Number(parsed.toFixed(3));
-  }
-  return 0;
-};
-
-const parseRadius = (value: string) => {
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return Math.max(800, Math.min(12000, Math.round(parsed)));
-  }
-  return 2500;
-};
-
-const normalizeSearch = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
 
 const editions: Array<{ id: SeedEdition; label: string }> = [
   { id: 'java_1_21', label: 'Java 1.21+' },
@@ -81,6 +24,77 @@ const dimensions: Array<{ id: SeedDimension; label: string }> = [
   { id: 'nether', label: 'Nether' },
   { id: 'end', label: 'End' },
 ];
+
+const normalizeCoordinateInput = (input: string) => {
+  const value = input.replace(',', '.');
+  let output = '';
+  let hasMinus = false;
+  let hasDot = false;
+  let decimals = 0;
+
+  for (const char of value) {
+    if (char >= '0' && char <= '9') {
+      if (!hasDot || decimals < 3) {
+        output += char;
+        if (hasDot) {
+          decimals += 1;
+        }
+      }
+      continue;
+    }
+    if (char === '-' && !hasMinus && output.length === 0) {
+      output += char;
+      hasMinus = true;
+      continue;
+    }
+    if (char === '.' && !hasDot) {
+      output += char;
+      hasDot = true;
+    }
+  }
+  return output;
+};
+
+const parseCoordinate = (value: string) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Number(parsed.toFixed(3)) : 0;
+};
+
+const parseRadius = (value: string) => {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.max(800, Math.min(16000, Math.round(parsed)));
+  }
+  return 2500;
+};
+
+const normalizeSearch = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+type CategoryFilter = 'all' | StructureCategory;
+
+interface AppliedSearch {
+  centerX: number;
+  centerY: number;
+  centerZ: number;
+  radius: number;
+  seed: string;
+}
+
+interface Marker {
+  color: string;
+  distance: number;
+  id: string;
+  layer: StructureLayer;
+  layerId: string;
+  left: number;
+  top: number;
+  x: number;
+  z: number;
+}
 
 export function SeedMapScreen() {
   const deviceClass = useDeviceClass();
@@ -96,10 +110,21 @@ export function SeedMapScreen() {
   const [dimension, setDimension] = useState<SeedDimension>('overworld');
   const [zoom, setZoom] = useState(1);
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [showGrid, setShowGrid] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
-  const [activeLayers, setActiveLayers] = useState<string[]>(
-    structureLayers.filter((layer) => layer.dimension === 'overworld').map((layer) => layer.id)
+  const [hasSearched, setHasSearched] = useState(false);
+  const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
+  const [applied, setApplied] = useState<AppliedSearch>({
+    centerX: 0,
+    centerY: 64,
+    centerZ: 0,
+    radius: 2500,
+    seed: '0',
+  });
+
+  const [activeLayers, setActiveLayers] = useState<string[]>(() =>
+    structureLayers.filter((layer) => layer.dimension === 'overworld' && layer.defaultEnabled).map((layer) => layer.id)
   );
 
   const availableLayers = useMemo(
@@ -108,57 +133,70 @@ export function SeedMapScreen() {
   );
 
   useEffect(() => {
-    const allowedIds = new Set(availableLayers.map((layer) => layer.id));
+    const allowed = new Set(availableLayers.map((layer) => layer.id));
     setActiveLayers((prev) => {
-      const filtered = prev.filter((id) => allowedIds.has(id));
-      return filtered.length ? filtered : availableLayers.map((layer) => layer.id);
+      const kept = prev.filter((id) => allowed.has(id));
+      if (kept.length) {
+        return kept;
+      }
+      const defaults = availableLayers.filter((layer) => layer.defaultEnabled).map((layer) => layer.id);
+      return defaults.length ? defaults : availableLayers.map((layer) => layer.id);
     });
+    setCategoryFilter('all');
+    setSelectedMarkerId(null);
+  }, [availableLayers]);
+
+  const categoryOptions = useMemo(() => {
+    const ids = new Set(availableLayers.map((layer) => layer.category));
+    return structureCategories.filter((category) => ids.has(category.id));
   }, [availableLayers]);
 
   const filteredLayers = useMemo(() => {
     const query = normalizeSearch(search.trim());
-    if (!query) {
-      return availableLayers;
-    }
-
     return availableLayers.filter((layer) => {
-      const byName = normalizeSearch(layer.name).includes(query);
-      const byDescription = normalizeSearch(layer.description).includes(query);
-      return byName || byDescription;
+      if (categoryFilter !== 'all' && layer.category !== categoryFilter) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      const haystack = normalizeSearch(
+        `${layer.name} ${layer.description} ${layer.lootHint} ${layer.rarity} ${layer.aliases.join(' ')}`
+      );
+      return haystack.includes(query);
     });
-  }, [availableLayers, search]);
+  }, [availableLayers, categoryFilter, search]);
 
-  const centerX = parseCoordinate(x);
-  const centerZ = parseCoordinate(z);
-  const radiusBlocks = parseRadius(radiusInput);
-  const effectiveRadius = Math.max(400, Math.round(radiusBlocks / zoom));
+  const mapSize = useMemo(() => {
+    const sidePadding = compact ? 36 : 72;
+    return Math.max(260, Math.min(width - sidePadding, compact ? 390 : 680));
+  }, [compact, width]);
 
-  const rawPoints = useMemo(
-    () =>
-      generateStructurePoints({
-        activeLayers,
-        centerX,
-        centerZ,
-        dimension,
-        edition,
-        radius: effectiveRadius,
-        seed,
-      }),
-    [activeLayers, centerX, centerZ, dimension, edition, effectiveRadius, seed]
-  );
+  const effectiveRadius = Math.max(400, Math.round(applied.radius / zoom));
 
   const layerById = useMemo(() => {
-    const map = new Map<string, (typeof structureLayers)[number]>();
+    const map = new Map<string, StructureLayer>();
     for (const layer of structureLayers) {
       map.set(layer.id, layer);
     }
     return map;
   }, []);
 
-  const mapSize = useMemo(() => {
-    const sidePadding = compact ? 36 : 70;
-    return Math.max(260, Math.min(width - sidePadding, compact ? 380 : 660));
-  }, [compact, width]);
+  const rawPoints = useMemo(
+    () =>
+      hasSearched
+        ? generateStructurePoints({
+            activeLayers,
+            centerX: applied.centerX,
+            centerZ: applied.centerZ,
+            dimension,
+            edition,
+            radius: effectiveRadius,
+            seed: applied.seed,
+          })
+        : [],
+    [activeLayers, applied.centerX, applied.centerZ, applied.seed, dimension, edition, effectiveRadius, hasSearched]
+  );
 
   const markers = useMemo(() => {
     const half = mapSize / 2;
@@ -168,52 +206,111 @@ export function SeedMapScreen() {
         if (!layer) {
           return null;
         }
-        const left = half + ((point.x - centerX) / effectiveRadius) * half;
-        const top = half + ((point.z - centerZ) / effectiveRadius) * half;
-        const distance = structureDistance(centerX, centerZ, point.x, point.z);
-
+        const left = half + ((point.x - applied.centerX) / effectiveRadius) * half;
+        const top = half + ((point.z - applied.centerZ) / effectiveRadius) * half;
         if (left < 2 || left > mapSize - 2 || top < 2 || top > mapSize - 2) {
           return null;
         }
-
         return {
-          ...point,
           color: layer.color,
-          distance,
+          distance: structureDistance(applied.centerX, applied.centerZ, point.x, point.z),
+          id: point.id,
+          layer,
+          layerId: point.layerId,
           left,
           top,
+          x: point.x,
+          z: point.z,
         };
       })
-      .filter((marker): marker is NonNullable<typeof marker> => marker !== null);
-  }, [centerX, centerZ, effectiveRadius, layerById, mapSize, rawPoints]);
+      .filter((marker): marker is Marker => marker !== null);
+  }, [applied.centerX, applied.centerZ, effectiveRadius, layerById, mapSize, rawPoints]);
 
-  const nearest = useMemo(
-    () => [...markers].sort((a, b) => a.distance - b.distance).slice(0, 24),
-    [markers]
+  const nearest = useMemo(() => [...markers].sort((a, b) => a.distance - b.distance).slice(0, 28), [markers]);
+
+  const statsByLayer = useMemo(() => {
+    const stats = new Map<string, { count: number; nearest: number }>();
+    for (const marker of markers) {
+      const current = stats.get(marker.layerId);
+      if (!current) {
+        stats.set(marker.layerId, { count: 1, nearest: marker.distance });
+      } else {
+        current.count += 1;
+        current.nearest = Math.min(current.nearest, marker.distance);
+        stats.set(marker.layerId, current);
+      }
+    }
+    return stats;
+  }, [markers]);
+
+  const selectedMarker = useMemo(
+    () => markers.find((marker) => marker.id === selectedMarkerId) ?? null,
+    [markers, selectedMarkerId]
   );
 
+  useEffect(() => {
+    if (selectedMarkerId && !markers.some((marker) => marker.id === selectedMarkerId)) {
+      setSelectedMarkerId(null);
+    }
+  }, [markers, selectedMarkerId]);
+
   const gridLines = useMemo(() => {
-    const divisions = 8;
     const lines: number[] = [];
-    for (let i = 0; i <= divisions; i += 1) {
-      lines.push((i / divisions) * mapSize);
+    for (let i = 0; i <= 8; i += 1) {
+      lines.push((i / 8) * mapSize);
     }
     return lines;
   }, [mapSize]);
 
-  const scalePerCell = Math.round((effectiveRadius * 2) / 8);
-
-  const toggleLayer = (layerId: string) => {
-    setActiveLayers((prev) => (prev.includes(layerId) ? prev.filter((id) => id !== layerId) : [...prev, layerId]));
-  };
-
   const activateAll = () => setActiveLayers(availableLayers.map((layer) => layer.id));
   const deactivateAll = () => setActiveLayers([]);
+  const useRecommended = () => {
+    const defaults = availableLayers.filter((layer) => layer.defaultEnabled).map((layer) => layer.id);
+    setActiveLayers(defaults.length ? defaults : availableLayers.map((layer) => layer.id));
+  };
+  const activateFiltered = () =>
+    setActiveLayers((prev) => {
+      const next = new Set(prev);
+      for (const layer of filteredLayers) {
+        next.add(layer.id);
+      }
+      return [...next];
+    });
+  const deactivateFiltered = () => {
+    const ids = new Set(filteredLayers.map((layer) => layer.id));
+    setActiveLayers((prev) => prev.filter((id) => !ids.has(id)));
+  };
+  const toggleLayer = (layerId: string) =>
+    setActiveLayers((prev) => (prev.includes(layerId) ? prev.filter((id) => id !== layerId) : [...prev, layerId]));
+
+  const runSearch = () => {
+    setApplied({
+      centerX: parseCoordinate(x),
+      centerY: parseCoordinate(y),
+      centerZ: parseCoordinate(z),
+      radius: parseRadius(radiusInput),
+      seed: seed.trim() || '0',
+    });
+    setHasSearched(true);
+    setSelectedMarkerId(null);
+  };
+
+  const focusMarker = () => {
+    if (!selectedMarker) {
+      return;
+    }
+    setX(Math.round(selectedMarker.x).toString());
+    setZ(Math.round(selectedMarker.z).toString());
+    setApplied((prev) => ({ ...prev, centerX: selectedMarker.x, centerZ: selectedMarker.z }));
+  };
+
+  const shortLabel = (name: string) => (name.length > 14 ? `${name.slice(0, 12)}..` : name);
+  const scalePerCell = Math.round((effectiveRadius * 2) / 8);
 
   return (
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
       <SectionCard
-        subtitle="Modo tipo Chunkbase: filtra estructuras, activa/desactiva capas y revisa coordenadas cercanas"
+        subtitle="Tipo Chunkbase: elige estructura, activa/desactiva capas y obten coordenadas cercanas"
         title="Mapa Avanzado De Seed"
       >
         <Text style={styles.label}>Seed</Text>
@@ -251,10 +348,10 @@ export function SeedMapScreen() {
 
         <View style={[styles.row, compact && styles.rowCompact]}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Radio de busqueda (bloques)</Text>
+            <Text style={styles.label}>Radio (bloques)</Text>
             <TextInput
               keyboardType="number-pad"
-              onChangeText={(value) => setRadiusInput(normalizePositiveInt(value))}
+              onChangeText={(value) => setRadiusInput(value.replace(/[^\d]/g, ''))}
               placeholder="2500"
               style={[styles.input, compact && styles.inputCompact]}
               value={radiusInput}
@@ -263,12 +360,12 @@ export function SeedMapScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Zoom</Text>
             <View style={styles.zoomRow}>
-              <Pressable onPress={() => setZoom((current) => Math.max(0.5, Number((current - 0.5).toFixed(1))))} style={styles.zoomButton}>
-                <Text style={styles.zoomButtonText}>-</Text>
+              <Pressable onPress={() => setZoom((v) => Math.max(0.5, Number((v - 0.5).toFixed(1))))} style={styles.zoomBtn}>
+                <Text style={styles.zoomTxt}>-</Text>
               </Pressable>
               <Text style={styles.zoomValue}>{zoom.toFixed(1)}x</Text>
-              <Pressable onPress={() => setZoom((current) => Math.min(3, Number((current + 0.5).toFixed(1))))} style={styles.zoomButton}>
-                <Text style={styles.zoomButtonText}>+</Text>
+              <Pressable onPress={() => setZoom((v) => Math.min(3, Number((v + 0.5).toFixed(1))))} style={styles.zoomBtn}>
+                <Text style={styles.zoomTxt}>+</Text>
               </Pressable>
             </View>
           </View>
@@ -276,159 +373,195 @@ export function SeedMapScreen() {
 
         <Text style={styles.label}>Edicion</Text>
         <View style={styles.chips}>
-          {editions.map((entry) => {
-            const active = edition === entry.id;
-            return (
-              <Pressable key={entry.id} onPress={() => setEdition(entry.id)} style={[styles.chip, active && styles.chipActive]}>
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{entry.label}</Text>
-              </Pressable>
-            );
-          })}
+          {editions.map((entry) => (
+            <Pressable
+              key={entry.id}
+              onPress={() => setEdition(entry.id)}
+              style={[styles.chip, edition === entry.id && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, edition === entry.id && styles.chipTextActive]}>{entry.label}</Text>
+            </Pressable>
+          ))}
         </View>
 
         <Text style={styles.label}>Dimension</Text>
         <View style={styles.chips}>
-          {dimensions.map((entry) => {
-            const active = dimension === entry.id;
-            return (
-              <Pressable key={entry.id} onPress={() => setDimension(entry.id)} style={[styles.chip, active && styles.chipActiveSecondary]}>
-                <Text style={[styles.chipText, active && styles.chipTextActiveSecondary]}>{entry.label}</Text>
-              </Pressable>
-            );
-          })}
+          {dimensions.map((entry) => (
+            <Pressable
+              key={entry.id}
+              onPress={() => setDimension(entry.id)}
+              style={[styles.chip, dimension === entry.id && styles.chipActiveSecondary]}
+            >
+              <Text style={[styles.chipText, dimension === entry.id && styles.chipTextActiveSecondary]}>{entry.label}</Text>
+            </Pressable>
+          ))}
         </View>
 
-        <Text style={styles.label}>Buscar estructura</Text>
+        <Text style={styles.label}>Buscar estructura/categoria</Text>
         <TextInput
           onChangeText={setSearch}
-          placeholder="Ejemplo: aldea, stronghold, monumento..."
+          placeholder="Ejemplo: aldea, loot, bastion, progreso..."
           style={[styles.input, compact && styles.inputCompact]}
           value={search}
         />
 
-        <View style={[styles.row, styles.actionsRow, compact && styles.rowCompact]}>
-          <Pressable onPress={activateAll} style={[styles.actionButton, styles.actionPrimary]}>
-            <Text style={styles.actionButtonText}>Activar todo</Text>
+        <View style={styles.chips}>
+          <Pressable
+            onPress={() => setCategoryFilter('all')}
+            style={[styles.chip, categoryFilter === 'all' && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, categoryFilter === 'all' && styles.chipTextActive]}>Todas</Text>
           </Pressable>
-          <Pressable onPress={deactivateAll} style={[styles.actionButton, styles.actionDanger]}>
-            <Text style={styles.actionButtonText}>Desactivar todo</Text>
+          {categoryOptions.map((entry) => (
+            <Pressable
+              key={entry.id}
+              onPress={() => setCategoryFilter(entry.id)}
+              style={[styles.chip, categoryFilter === entry.id && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, categoryFilter === entry.id && styles.chipTextActive]}>{entry.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={[styles.row, styles.topActions, compact && styles.rowCompact]}>
+          <Pressable onPress={activateAll} style={[styles.actionBtn, styles.actionGood]}>
+            <Text style={styles.actionTxt}>Activar todo</Text>
+          </Pressable>
+          <Pressable onPress={useRecommended} style={[styles.actionBtn, styles.actionNeutral]}>
+            <Text style={styles.actionTxt}>Recomendadas</Text>
+          </Pressable>
+          <Pressable onPress={deactivateAll} style={[styles.actionBtn, styles.actionWarn]}>
+            <Text style={styles.actionTxt}>Apagar todo</Text>
+          </Pressable>
+        </View>
+        <View style={[styles.row, compact && styles.rowCompact]}>
+          <Pressable onPress={activateFiltered} style={[styles.actionBtn, styles.actionGood]}>
+            <Text style={styles.actionTxt}>Activar visibles</Text>
+          </Pressable>
+          <Pressable onPress={deactivateFiltered} style={[styles.actionBtn, styles.actionWarn]}>
+            <Text style={styles.actionTxt}>Apagar visibles</Text>
           </Pressable>
         </View>
 
+        <Text style={styles.helperText}>
+          Capas activas: {activeLayers.length}/{availableLayers.length}
+        </Text>
+
         <View style={styles.layerList}>
           {filteredLayers.map((layer) => {
-            const active = activeLayers.includes(layer.id);
+            const stat = statsByLayer.get(layer.id);
             return (
               <View key={layer.id} style={styles.layerRow}>
-                <View style={[styles.layerDot, { backgroundColor: layer.color }]} />
-                <View style={styles.layerInfo}>
-                  <Text style={styles.layerTitle}>{layer.name}</Text>
-                  <Text style={styles.layerDesc}>{layer.description}</Text>
+                <View style={[styles.dot, { backgroundColor: layer.color }]} />
+                <View style={styles.layerBody}>
+                  <Text style={styles.layerTitle}>
+                    {layer.name} · {layer.rarity}
+                  </Text>
+                  <Text style={styles.layerMeta}>{layer.description}</Text>
+                  <Text style={styles.layerMeta}>
+                    Loot: {layer.lootHint}
+                    {hasSearched && stat ? ` | En mapa: ${stat.count} | Cercana: ${stat.nearest}b` : ''}
+                  </Text>
                 </View>
-                <Switch onValueChange={() => toggleLayer(layer.id)} value={active} />
+                <Switch onValueChange={() => toggleLayer(layer.id)} value={activeLayers.includes(layer.id)} />
               </View>
             );
           })}
         </View>
 
-        {!filteredLayers.length ? <Text style={styles.emptyText}>No hay estructuras para ese filtro.</Text> : null}
+        <Pressable onPress={runSearch} style={styles.searchBtn}>
+          <Text style={styles.searchBtnTxt}>Buscar estructuras con esta seed</Text>
+        </Pressable>
       </SectionCard>
 
       <SectionCard
-        subtitle={`Centro actual: X ${Math.round(centerX)} / Z ${Math.round(centerZ)} | Y ${Math.round(parseCoordinate(y))}`}
-        title="Vista De Mapa"
+        subtitle={
+          hasSearched
+            ? `Centro X ${Math.round(applied.centerX)} / Z ${Math.round(applied.centerZ)} | Y ${Math.round(applied.centerY)}`
+            : 'Primero pulsa "Buscar estructuras con esta seed"'
+        }
+        title="Mapa De Capas"
       >
-        <View style={styles.mapControlRow}>
-          <Pressable onPress={() => setShowGrid((value) => !value)} style={[styles.mapToggle, showGrid && styles.mapToggleActive]}>
-            <Text style={[styles.mapToggleText, showGrid && styles.mapToggleTextActive]}>
-              {showGrid ? 'Cuadricula: ON' : 'Cuadricula: OFF'}
-            </Text>
-          </Pressable>
-          <Pressable onPress={() => setShowLabels((value) => !value)} style={[styles.mapToggle, showLabels && styles.mapToggleActive]}>
-            <Text style={[styles.mapToggleText, showLabels && styles.mapToggleTextActive]}>
-              {showLabels ? 'Etiquetas: ON' : 'Etiquetas: OFF'}
-            </Text>
-          </Pressable>
-        </View>
+        {!hasSearched ? (
+          <Text style={styles.empty}>Aun no hay resultados cargados.</Text>
+        ) : (
+          <>
+            <View style={styles.chips}>
+              <Pressable onPress={() => setShowGrid((v) => !v)} style={[styles.chip, showGrid && styles.chipActive]}>
+                <Text style={[styles.chipText, showGrid && styles.chipTextActive]}>{showGrid ? 'Cuadricula ON' : 'Cuadricula OFF'}</Text>
+              </Pressable>
+              <Pressable onPress={() => setShowLabels((v) => !v)} style={[styles.chip, showLabels && styles.chipActive]}>
+                <Text style={[styles.chipText, showLabels && styles.chipTextActive]}>{showLabels ? 'Etiquetas ON' : 'Etiquetas OFF'}</Text>
+              </Pressable>
+            </View>
 
-        <View style={[styles.mapWrap, { height: mapSize + 8 }]}>
-          <View style={[styles.mapCanvas, { height: mapSize, width: mapSize }]}>
-            {showGrid
-              ? gridLines.map((line, index) => (
-                  <View key={`h-${index}`} style={[styles.gridLineHorizontal, { top: line }]} />
-                ))
-              : null}
-            {showGrid
-              ? gridLines.map((line, index) => (
-                  <View key={`v-${index}`} style={[styles.gridLineVertical, { left: line }]} />
-                ))
-              : null}
+            <View style={[styles.mapWrap, { height: mapSize + 8 }]}>
+              <View style={[styles.mapCanvas, { height: mapSize, width: mapSize }]}>
+                {showGrid ? gridLines.map((line, i) => <View key={`h-${i}`} style={[styles.gridH, { top: line }]} />) : null}
+                {showGrid ? gridLines.map((line, i) => <View key={`v-${i}`} style={[styles.gridV, { left: line }]} />) : null}
 
-            <View style={[styles.axisHorizontal, { top: mapSize / 2 }]} />
-            <View style={[styles.axisVertical, { left: mapSize / 2 }]} />
+                <View style={[styles.axisH, { top: mapSize / 2 }]} />
+                <View style={[styles.axisV, { left: mapSize / 2 }]} />
 
-            {markers.map((marker) => (
-              <View key={marker.id}>
-                <View
-                  style={[
-                    styles.marker,
-                    {
-                      backgroundColor: marker.color,
-                      left: marker.left - 6,
-                      top: marker.top - 6,
-                    },
-                  ]}
-                />
-                {showLabels ? (
-                  <Text
-                    style={[
-                      styles.markerLabel,
-                      {
-                        left: marker.left + 7,
-                        top: marker.top - 7,
-                      },
-                    ]}
-                  >
-                    {marker.layerName}
-                  </Text>
-                ) : null}
+                {markers.map((marker) => (
+                  <View key={marker.id}>
+                    <Pressable onPress={() => setSelectedMarkerId(marker.id)} style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}>
+                      <View style={[styles.marker, selectedMarkerId === marker.id && styles.markerSelected, { backgroundColor: marker.color }]} />
+                    </Pressable>
+                    {showLabels ? (
+                      <Text style={[styles.markerLabel, { left: marker.left + 8, top: marker.top - 6 }]}>{shortLabel(marker.layer.name)}</Text>
+                    ) : null}
+                  </View>
+                ))}
+
+                <View style={[styles.center, { left: mapSize / 2 - 7, top: mapSize / 2 - 7 }]} />
               </View>
-            ))}
+            </View>
 
-            <View style={[styles.centerMarker, { left: mapSize / 2 - 7, top: mapSize / 2 - 7 }]} />
-          </View>
-        </View>
-        <Text style={styles.scaleText}>
-          Escala: cada division del mapa ~ {scalePerCell} bloques | Marcadores activos: {markers.length}
-        </Text>
-        <Text style={styles.disclaimerText}>
-          Calculado localmente por seed para busqueda rapida en movil. Usa coordenadas en juego para confirmar exactitud
-          final.
-        </Text>
+            <Text style={styles.helperText}>Escala aprox: {scalePerCell} bloques por division | Puntos: {markers.length}</Text>
+
+            {selectedMarker ? (
+              <View style={styles.selectedCard}>
+                <Text style={styles.layerTitle}>{selectedMarker.layer.name}</Text>
+                <Text style={styles.layerMeta}>
+                  Categoria: {structureCategories.find((c) => c.id === selectedMarker.layer.category)?.label ?? 'N/A'} | Rareza:{' '}
+                  {selectedMarker.layer.rarity}
+                </Text>
+                <Text style={styles.layerMeta}>
+                  X {Math.round(selectedMarker.x)} / Z {Math.round(selectedMarker.z)} | Distancia: {selectedMarker.distance} bloques
+                </Text>
+                <Text style={styles.layerMeta}>Loot/utilidad: {selectedMarker.layer.lootHint}</Text>
+                <Pressable onPress={focusMarker} style={[styles.actionBtn, styles.actionGood]}>
+                  <Text style={styles.actionTxt}>Centrar mapa aqui</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Text style={styles.empty}>Toca un marcador para ver detalle completo.</Text>
+            )}
+          </>
+        )}
       </SectionCard>
 
-      <SectionCard
-        subtitle="Se listan por distancia desde tus coordenadas X/Z actuales"
-        title="Resultados Cercanos"
-      >
-        {nearest.length ? (
-          <View style={styles.resultsList}>
+      <SectionCard subtitle="Ordenados por distancia desde tus coordenadas X/Z" title="Resultados Cercanos">
+        {!hasSearched ? (
+          <Text style={styles.empty}>No hay resultados aun.</Text>
+        ) : nearest.length ? (
+          <View style={styles.results}>
             {nearest.map((entry) => (
-              <View key={entry.id} style={styles.resultCard}>
-                <View style={[styles.layerDot, { backgroundColor: entry.color }]} />
-                <View style={styles.resultContent}>
-                  <Text style={styles.resultTitle}>{entry.layerName}</Text>
-                  <Text style={styles.resultMeta}>
-                    X {Math.round(entry.x)} | Z {Math.round(entry.z)} | Distancia: {entry.distance} bloques
+              <Pressable key={entry.id} onPress={() => setSelectedMarkerId(entry.id)} style={styles.resultRow}>
+                <View style={[styles.dot, { backgroundColor: entry.color }]} />
+                <View style={styles.layerBody}>
+                  <Text style={styles.layerTitle}>{entry.layer.name}</Text>
+                  <Text style={styles.layerMeta}>
+                    X {Math.round(entry.x)} | Z {Math.round(entry.z)} | Distancia {entry.distance} bloques
                   </Text>
+                  <Text style={styles.layerMeta}>Loot/utilidad: {entry.layer.lootHint}</Text>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         ) : (
-          <Text style={styles.emptyText}>
-            No hay resultados con los filtros actuales. Activa mas estructuras o aumenta el radio.
-          </Text>
+          <Text style={styles.empty}>Sin resultados con este filtro. Activa mas capas o aumenta el radio.</Text>
         )}
       </SectionCard>
     </ScrollView>
@@ -436,118 +569,13 @@ export function SeedMapScreen() {
 }
 
 const styles = StyleSheet.create({
-  actionButton: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 40,
-    paddingHorizontal: spacing.sm,
-  },
-  actionButtonText: {
-    color: palette.text,
-    fontFamily: font.display,
-    fontSize: 11,
-  },
-  actionDanger: {
-    backgroundColor: '#FEECE9',
-    borderColor: '#E3A297',
-  },
-  actionPrimary: {
-    backgroundColor: '#E8F6E9',
-    borderColor: '#9FCC9A',
-  },
-  actionsRow: {
-    marginTop: spacing.sm,
-  },
-  axisHorizontal: {
-    backgroundColor: '#E58C44',
-    height: 1,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-  },
-  axisVertical: {
-    backgroundColor: '#E58C44',
-    bottom: 0,
-    position: 'absolute',
-    top: 0,
-    width: 1,
-  },
-  centerMarker: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E58C44',
-    borderRadius: 8,
-    borderWidth: 2,
-    height: 14,
-    position: 'absolute',
-    width: 14,
-  },
-  chip: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#C8D2F1',
-    borderRadius: radius.chip,
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
-  },
-  chipActive: {
-    backgroundColor: '#DFF4E8',
-    borderColor: palette.primary,
-  },
-  chipActiveSecondary: {
-    backgroundColor: '#FFF5E9',
-    borderColor: '#F5D4A5',
-  },
-  chipText: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  chipTextActive: {
-    color: palette.primaryDark,
-  },
-  chipTextActiveSecondary: {
-    color: palette.secondary,
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  contentCompact: {
-    paddingHorizontal: spacing.sm,
-  },
-  disclaimerText: {
-    color: palette.muted,
-    fontSize: 10,
-    lineHeight: 14,
-  },
-  emptyText: {
-    color: palette.muted,
-    fontSize: 12,
-    marginTop: spacing.xs,
-  },
-  gridLineHorizontal: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    height: 1,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-  },
-  gridLineVertical: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    bottom: 0,
-    position: 'absolute',
-    top: 0,
-    width: 1,
-  },
+  page: { backgroundColor: palette.appBackground, flex: 1 },
+  content: { gap: spacing.md, padding: spacing.md, paddingBottom: spacing.xl },
+  contentCompact: { paddingHorizontal: spacing.sm },
+  row: { flexDirection: 'row', gap: spacing.sm },
+  rowCompact: { flexDirection: 'column' },
+  label: { color: palette.text, fontFamily: font.display, fontSize: 12, marginTop: spacing.sm, marginBottom: spacing.xs },
+  inputGroup: { flex: 1, gap: spacing.xs },
   input: {
     backgroundColor: '#F9FAFB',
     borderColor: palette.border,
@@ -558,38 +586,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 10,
   },
-  inputCompact: {
-    fontSize: 13,
+  inputCompact: { fontSize: 13 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.xs },
+  chip: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#C8D2F1',
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
   },
-  inputGroup: {
+  chipActive: { backgroundColor: '#DFF4E8', borderColor: palette.primary },
+  chipActiveSecondary: { backgroundColor: '#FFF5E9', borderColor: '#F5D4A5' },
+  chipText: { color: palette.muted, fontSize: 11, fontWeight: '600' },
+  chipTextActive: { color: palette.primaryDark },
+  chipTextActiveSecondary: { color: palette.secondary },
+  topActions: { marginTop: spacing.xs },
+  actionBtn: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
     flex: 1,
-    gap: spacing.xs,
+    justifyContent: 'center',
+    minHeight: 39,
+    paddingHorizontal: spacing.sm,
   },
-  label: {
-    color: palette.text,
-    fontFamily: font.display,
-    fontSize: 12,
-    marginBottom: spacing.xs,
-    marginTop: spacing.sm,
-  },
-  layerDesc: {
-    color: palette.muted,
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  layerDot: {
-    borderRadius: 6,
-    height: 12,
-    width: 12,
-  },
-  layerInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  layerList: {
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-  },
+  actionTxt: { color: palette.text, fontFamily: font.display, fontSize: 11, textAlign: 'center' },
+  actionGood: { backgroundColor: '#E8F6E9', borderColor: '#9FCC9A' },
+  actionWarn: { backgroundColor: '#FEECE9', borderColor: '#E3A297' },
+  actionNeutral: { backgroundColor: '#F2F2E9', borderColor: '#CDCDB6' },
+  helperText: { color: palette.muted, fontSize: 11, marginTop: spacing.xs },
+  layerList: { gap: spacing.xs, marginTop: spacing.sm },
   layerRow: {
     alignItems: 'center',
     backgroundColor: '#F8F4EA',
@@ -601,12 +628,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  layerTitle: {
-    color: palette.text,
-    fontFamily: font.display,
-    fontSize: 12,
-    fontWeight: '700',
+  dot: { borderRadius: 6, height: 12, width: 12 },
+  layerBody: { flex: 1, gap: 2, minWidth: 0 },
+  layerTitle: { color: palette.text, fontFamily: font.display, fontSize: 12, flexShrink: 1 },
+  layerMeta: { color: palette.muted, fontSize: 11, lineHeight: 15 },
+  searchBtn: {
+    alignItems: 'center',
+    backgroundColor: '#E1F2E8',
+    borderColor: '#91C7A8',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+    marginTop: spacing.md,
+    minHeight: 44,
   },
+  searchBtnTxt: { color: palette.primaryDark, fontFamily: font.display, fontSize: 12 },
+  mapWrap: { alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
   mapCanvas: {
     backgroundColor: '#102218',
     borderColor: '#3E5E45',
@@ -615,56 +652,35 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  mapControlRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginBottom: spacing.sm,
+  gridH: { backgroundColor: 'rgba(255,255,255,0.14)', height: 1, left: 0, position: 'absolute', right: 0 },
+  gridV: { backgroundColor: 'rgba(255,255,255,0.14)', width: 1, top: 0, bottom: 0, position: 'absolute' },
+  axisH: { backgroundColor: '#E58C44', height: 1, left: 0, right: 0, position: 'absolute' },
+  axisV: { backgroundColor: '#E58C44', width: 1, top: 0, bottom: 0, position: 'absolute' },
+  center: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E58C44',
+    borderRadius: 8,
+    borderWidth: 2,
+    height: 14,
+    position: 'absolute',
+    width: 14,
   },
-  mapToggle: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#C8D2F1',
-    borderRadius: radius.chip,
+  markerTouch: { width: 20, height: 20, position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  marker: { borderColor: '#FFFFFF', borderWidth: 1, borderRadius: 6, width: 12, height: 12 },
+  markerSelected: { borderColor: '#FFE38A', borderWidth: 2, width: 14, height: 14 },
+  markerLabel: { color: '#E9F8EE', fontSize: 9, fontWeight: '700', maxWidth: 90, position: 'absolute' },
+  selectedCard: {
+    backgroundColor: '#F8F4EA',
+    borderColor: '#C2AF87',
+    borderRadius: radius.md,
     borderWidth: 1,
+    gap: 4,
+    marginTop: spacing.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
-  mapToggleActive: {
-    backgroundColor: '#E8F6E9',
-    borderColor: '#9FCC9A',
-  },
-  mapToggleText: {
-    color: palette.muted,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  mapToggleTextActive: {
-    color: palette.primaryDark,
-  },
-  mapWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-  },
-  marker: {
-    borderColor: '#FFFFFF',
-    borderRadius: 6,
-    borderWidth: 1,
-    height: 12,
-    position: 'absolute',
-    width: 12,
-  },
-  markerLabel: {
-    color: '#E9F8EE',
-    fontSize: 9,
-    fontWeight: '700',
-    position: 'absolute',
-  },
-  page: {
-    backgroundColor: palette.appBackground,
-    flex: 1,
-  },
-  resultCard: {
+  results: { gap: spacing.xs },
+  resultRow: {
     alignItems: 'center',
     backgroundColor: '#F8F4EA',
     borderColor: '#C2AF87',
@@ -675,36 +691,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  resultContent: {
-    flex: 1,
-    gap: 2,
-  },
-  resultMeta: {
-    color: palette.muted,
-    fontSize: 11,
-  },
-  resultTitle: {
-    color: palette.text,
-    fontFamily: font.display,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  resultsList: {
-    gap: spacing.xs,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  rowCompact: {
-    flexDirection: 'column',
-  },
-  scaleText: {
-    color: palette.text,
-    fontSize: 11,
-    marginBottom: 4,
-  },
-  zoomButton: {
+  empty: { color: palette.muted, fontSize: 12, marginTop: spacing.xs },
+  zoomRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs, marginTop: 1 },
+  zoomBtn: {
     alignItems: 'center',
     backgroundColor: '#EEF2FF',
     borderColor: '#C8D2F1',
@@ -714,24 +703,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 34,
   },
-  zoomButtonText: {
-    color: palette.text,
-    fontFamily: font.display,
-    fontSize: 16,
-    fontWeight: '700',
-    lineHeight: 18,
-  },
-  zoomRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginTop: 1,
-  },
-  zoomValue: {
-    color: palette.text,
-    fontFamily: font.display,
-    fontSize: 12,
-    minWidth: 42,
-    textAlign: 'center',
-  },
+  zoomTxt: { color: palette.text, fontFamily: font.display, fontSize: 16, fontWeight: '700', lineHeight: 18 },
+  zoomValue: { color: palette.text, fontFamily: font.display, fontSize: 12, minWidth: 42, textAlign: 'center' },
 });
