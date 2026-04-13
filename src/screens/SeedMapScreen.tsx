@@ -173,6 +173,13 @@ interface CursorState {
   worldZ: number;
 }
 
+interface MapTooltip {
+  left: number;
+  subtitle: string;
+  title: string;
+  top: number;
+}
+
 interface StyledMapCell {
   color: string;
   col: number;
@@ -219,6 +226,7 @@ export function SeedMapScreen() {
   const [showRelief, setShowRelief] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
+  const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [cursor, setCursor] = useState<CursorState>({
     active: false,
     canvasX: 0,
@@ -546,6 +554,10 @@ export function SeedMapScreen() {
     () => markers.find((marker) => marker.id === selectedMarkerId) ?? null,
     [markers, selectedMarkerId]
   );
+  const hoveredMarker = useMemo(
+    () => markers.find((marker) => marker.id === hoveredMarkerId) ?? null,
+    [hoveredMarkerId, markers]
+  );
   const centerBiome = useMemo(
     () =>
       hasSearched
@@ -668,6 +680,11 @@ export function SeedMapScreen() {
       setSelectedMarkerId(null);
     }
   }, [markers, selectedMarkerId]);
+  useEffect(() => {
+    if (hoveredMarkerId && !markers.some((marker) => marker.id === hoveredMarkerId)) {
+      setHoveredMarkerId(null);
+    }
+  }, [hoveredMarkerId, markers]);
 
   const gridLines = useMemo(() => {
     const lines: number[] = [];
@@ -701,6 +718,11 @@ export function SeedMapScreen() {
   };
 
   const blocksPerPixel = (effectiveRadius * 2) / mapSize;
+
+  const buildTooltipPosition = (anchorLeft: number, anchorTop: number) => ({
+    left: Math.max(6, Math.min(mapSize - 176, anchorLeft)),
+    top: Math.max(6, Math.min(mapSize - 70, anchorTop)),
+  });
 
   const beginPan = (pointerX: number, pointerY: number) => {
     if (!panEnabled || !hasSearched) {
@@ -768,6 +790,35 @@ export function SeedMapScreen() {
       terrainName: terrain?.terrainName ?? 'N/A',
     };
   }, [biomeCellSize, biomeCells, biomeCellsPerSide, cursor.canvasX, cursor.canvasY, hasSearched, terrainCells]);
+
+  const markerTooltip = useMemo<MapTooltip | null>(() => {
+    const marker = hoveredMarker ?? selectedMarker;
+    if (!marker) {
+      return null;
+    }
+    const pos = buildTooltipPosition(marker.left + 12, marker.top - 56);
+    return {
+      left: pos.left,
+      subtitle: `X ${Math.round(marker.x)} | Y ${Math.round(applied.centerY)} | Z ${Math.round(marker.z)}`,
+      title: marker.layer.name,
+      top: pos.top,
+    };
+  }, [applied.centerY, hoveredMarker, selectedMarker]);
+
+  const cursorTooltip = useMemo<MapTooltip | null>(() => {
+    if (!cursor.active || isPanning || hoveredMarker) {
+      return null;
+    }
+    const pos = buildTooltipPosition(cursor.canvasX + 12, cursor.canvasY + 12);
+    return {
+      left: pos.left,
+      subtitle: `X ${Math.round(cursor.worldX)} | Y ${Math.round(applied.centerY)} | Z ${Math.round(cursor.worldZ)}`,
+      title: 'Coordenada exacta',
+      top: pos.top,
+    };
+  }, [applied.centerY, cursor.active, cursor.canvasX, cursor.canvasY, cursor.worldX, cursor.worldZ, hoveredMarker, isPanning]);
+
+  const mapTooltip = markerTooltip ?? cursorTooltip;
 
   const activateAll = () => setActiveLayers(availableLayers.map((layer) => layer.id));
   const deactivateAll = () => setActiveLayers([]);
@@ -1127,6 +1178,7 @@ export function SeedMapScreen() {
                   onPointerLeave={() => {
                     if (!panAnchorRef.current) {
                       setCursor((prev) => ({ ...prev, active: false }));
+                      setHoveredMarkerId(null);
                     }
                   }}
                   onResponderGrant={(event) => {
@@ -1148,7 +1200,7 @@ export function SeedMapScreen() {
                       endPan();
                       return;
                     }
-                    setCursor((prev) => ({ ...prev, active: false }));
+                    updateCursor(event.nativeEvent.locationX, event.nativeEvent.locationY, true);
                   }}
                   onResponderTerminate={() => {
                     if (panEnabled && panAnchorRef.current) {
@@ -1226,7 +1278,16 @@ export function SeedMapScreen() {
 
                   {markers.map((marker) => (
                     <View key={marker.id}>
-                      <Pressable onPress={() => setSelectedMarkerId(marker.id)} style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}>
+                      <Pressable
+                        onHoverIn={() => setHoveredMarkerId(marker.id)}
+                        onHoverOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
+                        onPress={() => {
+                          setSelectedMarkerId(marker.id);
+                          setHoveredMarkerId(marker.id);
+                        }}
+                        onPressOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
+                        style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}
+                      >
                         <View style={[styles.marker, selectedMarkerId === marker.id && styles.markerSelected, { backgroundColor: marker.color }]} />
                       </Pressable>
                       {showLabels && markerLabelIds.has(marker.id) ? (
@@ -1234,6 +1295,17 @@ export function SeedMapScreen() {
                       ) : null}
                     </View>
                   ))}
+
+                  {mapTooltip ? (
+                    <View pointerEvents="none" style={[styles.mapTooltip, { left: mapTooltip.left, top: mapTooltip.top }]}>
+                      <Text numberOfLines={1} style={styles.mapTooltipTitle}>
+                        {mapTooltip.title}
+                      </Text>
+                      <Text numberOfLines={1} style={styles.mapTooltipCoords}>
+                        {mapTooltip.subtitle}
+                      </Text>
+                    </View>
+                  ) : null}
 
                   <View style={[styles.center, { left: mapSize / 2 - 7, top: mapSize / 2 - 7 }]} />
                 </View>
@@ -1598,6 +1670,27 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.45)',
     textShadowOffset: { height: 1, width: 1 },
     textShadowRadius: 2,
+  },
+  mapTooltip: {
+    backgroundColor: 'rgba(33,44,36,0.94)',
+    borderColor: '#A6D3B4',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    maxWidth: 170,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    position: 'absolute',
+    zIndex: 50,
+  },
+  mapTooltipTitle: {
+    color: '#F5FFF8',
+    fontFamily: font.display,
+    fontSize: 9,
+  },
+  mapTooltipCoords: {
+    color: '#D8F2DF',
+    fontSize: 9,
+    marginTop: 2,
   },
   selectedCard: {
     backgroundColor: '#F8F4EA',
