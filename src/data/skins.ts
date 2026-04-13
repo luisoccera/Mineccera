@@ -20,6 +20,7 @@ export interface SkinSearchResponse {
 interface ParsedSkinResult {
   downloadUrl: string;
   id: string;
+  needsHydration: boolean;
   previewUrl: string;
   publishedAt: string;
   skinUrl: string;
@@ -207,7 +208,7 @@ const parseSkinResultsFromYahoo = (markdown: string) => {
     const embeddedPreviewUrl = parsePreviewSkinUrl(line);
     const downloadEndpoint = parseDownloadEndpoint(line);
 
-    let downloadUrl = downloadEndpoint || toDownloadEndpoint(id);
+    let downloadUrl = embeddedDownloadUrl || downloadEndpoint || '';
     let previewUrl = embeddedPreviewUrl;
     let publishedAt = 'N/A';
 
@@ -226,6 +227,7 @@ const parseSkinResultsFromYahoo = (markdown: string) => {
     results.push({
       downloadUrl,
       id,
+      needsHydration: !embeddedDownloadUrl,
       previewUrl,
       publishedAt,
       skinUrl,
@@ -284,7 +286,7 @@ const resolveSkinAssetsFromSkinPage = async (skinUrl: string) => {
       return null;
     }
     return {
-      downloadUrl: stableDownload || directDownload,
+      downloadUrl: directDownload || stableDownload,
       previewUrl: directPreview || (directDownload ? directDownload.replace('/uploads/skins/', '/uploads/preview-skins/') : ''),
       publishedAt: directDownload ? parseAssetPathFromDownloadUrl(directDownload) ?? 'N/A' : 'N/A',
     };
@@ -296,7 +298,8 @@ const resolveSkinAssetsFromSkinPage = async (skinUrl: string) => {
 const hydrateMissingAssets = async (items: ParsedSkinResult[]) => {
   const hydrated = await Promise.all(
     items.map(async (item) => {
-      if (item.downloadUrl && item.previewUrl) {
+      const hasDirectDownload = /\/uploads\/skins\//i.test(item.downloadUrl);
+      if (!item.needsHydration && hasDirectDownload && item.previewUrl) {
         return item;
       }
       const resolved = await resolveSkinAssetsFromSkinPage(item.skinUrl);
@@ -305,7 +308,8 @@ const hydrateMissingAssets = async (items: ParsedSkinResult[]) => {
       }
       return {
         ...item,
-        downloadUrl: resolved.downloadUrl || item.downloadUrl,
+        downloadUrl: resolved.downloadUrl || item.downloadUrl || toDownloadEndpoint(item.id),
+        needsHydration: false,
         previewUrl: resolved.previewUrl || item.previewUrl,
         publishedAt: resolved.publishedAt,
       };
