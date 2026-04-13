@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createElement, useEffect, useMemo, useRef, useState } from 'react';
+import * as Linking from 'expo-linking';
 import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { SectionCard } from '../components/SectionCard';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
@@ -214,6 +216,8 @@ export function SeedMapScreen() {
   const [edition, setEdition] = useState<SeedEdition>('java_1_21');
   const [dimension, setDimension] = useState<SeedDimension>('overworld');
   const [zoom, setZoom] = useState(1);
+  const [useExactMap, setUseExactMap] = useState(true);
+  const [exactMapReload, setExactMapReload] = useState(0);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [openAtSpawn, setOpenAtSpawn] = useState(true);
@@ -339,7 +343,7 @@ export function SeedMapScreen() {
 
   const rawPoints = useMemo(
     () =>
-      hasSearched
+      hasSearched && !useExactMap
         ? generateStructurePoints({
             activeLayers,
             centerX: applied.centerX,
@@ -350,12 +354,12 @@ export function SeedMapScreen() {
             seed: applied.seed,
           })
         : [],
-    [activeLayers, applied.centerX, applied.centerZ, applied.seed, dimension, edition, effectiveRadius, hasSearched]
+    [activeLayers, applied.centerX, applied.centerZ, applied.seed, dimension, edition, effectiveRadius, hasSearched, useExactMap]
   );
 
   const biomeCells = useMemo<BiomeCell[]>(
     () =>
-      hasSearched
+      hasSearched && !useExactMap
         ? generateBiomeCells({
             centerX: applied.centerX,
             centerZ: applied.centerZ,
@@ -366,12 +370,12 @@ export function SeedMapScreen() {
             seed: applied.seed,
           })
         : [],
-    [applied.centerX, applied.centerZ, applied.seed, biomeCellsPerSide, dimension, edition, effectiveRadius, hasSearched]
+    [applied.centerX, applied.centerZ, applied.seed, biomeCellsPerSide, dimension, edition, effectiveRadius, hasSearched, useExactMap]
   );
 
   const terrainCells = useMemo<TerrainCell[]>(
     () =>
-      hasSearched
+      hasSearched && !useExactMap
         ? generateTerrainCells({
             centerX: applied.centerX,
             centerZ: applied.centerZ,
@@ -382,7 +386,7 @@ export function SeedMapScreen() {
             seed: applied.seed,
           })
         : [],
-    [applied.centerX, applied.centerZ, applied.seed, biomeCellsPerSide, dimension, edition, effectiveRadius, hasSearched]
+    [applied.centerX, applied.centerZ, applied.seed, biomeCellsPerSide, dimension, edition, effectiveRadius, hasSearched, useExactMap]
   );
 
   const visualSeed = useMemo(() => parseSeedValue(applied.seed), [applied.seed]);
@@ -885,6 +889,15 @@ export function SeedMapScreen() {
 
   const mapTooltip = markerTooltip ?? cursorTooltip;
 
+  const exactVersionSlug = edition === 'java_1_21' ? '1.21-Java' : '1.21-Bedrock';
+  const exactSeedValue = (hasSearched ? applied.seed : seed).trim() || '0';
+  const exactCenterX = Math.round(hasSearched ? applied.centerX : parseCoordinate(x));
+  const exactCenterZ = Math.round(hasSearched ? applied.centerZ : parseCoordinate(z));
+  const exactMapUrl = useMemo(() => {
+    const encodedSeed = encodeURIComponent(exactSeedValue);
+    return `https://mcseedmap.net/${exactVersionSlug}/${encodedSeed}#x=${exactCenterX}&z=${exactCenterZ}&zoom=${zoom.toFixed(2)}&r=${exactMapReload}`;
+  }, [exactCenterX, exactCenterZ, exactMapReload, exactSeedValue, exactVersionSlug, zoom]);
+
   const applyZoomAt = (nextZoom: number, canvasX = mapSize / 2, canvasY = mapSize / 2) => {
     const safeZoom = clampZoom(nextZoom);
     if (safeZoom === zoom) {
@@ -1096,6 +1109,16 @@ export function SeedMapScreen() {
           </View>
         </View>
 
+        <Text style={styles.label}>Motor de mapa</Text>
+        <View style={styles.chips}>
+          <Pressable onPress={() => setUseExactMap(true)} style={[styles.chip, useExactMap && styles.chipActive]}>
+            <Text style={[styles.chipText, useExactMap && styles.chipTextActive]}>Exacto (cubiomes)</Text>
+          </Pressable>
+          <Pressable onPress={() => setUseExactMap(false)} style={[styles.chip, !useExactMap && styles.chipActiveSecondary]}>
+            <Text style={[styles.chipText, !useExactMap && styles.chipTextActiveSecondary]}>Interno (experimental)</Text>
+          </Pressable>
+        </View>
+
         <Text style={styles.label}>Centro inicial</Text>
         <View style={styles.chips}>
           <Pressable onPress={() => setOpenAtSpawn((value) => !value)} style={[styles.chip, openAtSpawn && styles.chipActive]}>
@@ -1159,80 +1182,90 @@ export function SeedMapScreen() {
           ))}
         </View>
 
-        <Text style={styles.label}>Buscar estructura/categoria</Text>
-        <TextInput
-          onChangeText={setSearch}
-          placeholder="Ejemplo: aldea, loot, bastion, progreso..."
-          style={[styles.input, compact && styles.inputCompact]}
-          value={search}
-        />
+        {!useExactMap ? (
+          <>
+            <Text style={styles.label}>Buscar estructura/categoria</Text>
+            <TextInput
+              onChangeText={setSearch}
+              placeholder="Ejemplo: aldea, loot, bastion, progreso..."
+              style={[styles.input, compact && styles.inputCompact]}
+              value={search}
+            />
 
-        <View style={styles.chips}>
-          <Pressable
-            onPress={() => setCategoryFilter('all')}
-            style={[styles.chip, categoryFilter === 'all' && styles.chipActive]}
-          >
-            <Text style={[styles.chipText, categoryFilter === 'all' && styles.chipTextActive]}>Todas</Text>
-          </Pressable>
-          {categoryOptions.map((entry) => (
-            <Pressable
-              key={entry.id}
-              onPress={() => setCategoryFilter(entry.id)}
-              style={[styles.chip, categoryFilter === entry.id && styles.chipActive]}
-            >
-              <Text style={[styles.chipText, categoryFilter === entry.id && styles.chipTextActive]}>{entry.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+            <View style={styles.chips}>
+              <Pressable
+                onPress={() => setCategoryFilter('all')}
+                style={[styles.chip, categoryFilter === 'all' && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, categoryFilter === 'all' && styles.chipTextActive]}>Todas</Text>
+              </Pressable>
+              {categoryOptions.map((entry) => (
+                <Pressable
+                  key={entry.id}
+                  onPress={() => setCategoryFilter(entry.id)}
+                  style={[styles.chip, categoryFilter === entry.id && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, categoryFilter === entry.id && styles.chipTextActive]}>{entry.label}</Text>
+                </Pressable>
+              ))}
+            </View>
 
-        <View style={[styles.row, styles.topActions, compact && styles.rowCompact]}>
-          <Pressable onPress={activateAll} style={[styles.actionBtn, styles.actionGood]}>
-            <Text style={styles.actionTxt}>Activar todo</Text>
-          </Pressable>
-          <Pressable onPress={useRecommended} style={[styles.actionBtn, styles.actionNeutral]}>
-            <Text style={styles.actionTxt}>Recomendadas</Text>
-          </Pressable>
-          <Pressable onPress={deactivateAll} style={[styles.actionBtn, styles.actionWarn]}>
-            <Text style={styles.actionTxt}>Apagar todo</Text>
-          </Pressable>
-        </View>
-        <View style={[styles.row, compact && styles.rowCompact]}>
-          <Pressable onPress={activateFiltered} style={[styles.actionBtn, styles.actionGood]}>
-            <Text style={styles.actionTxt}>Activar visibles</Text>
-          </Pressable>
-          <Pressable onPress={deactivateFiltered} style={[styles.actionBtn, styles.actionWarn]}>
-            <Text style={styles.actionTxt}>Apagar visibles</Text>
-          </Pressable>
-        </View>
+            <View style={[styles.row, styles.topActions, compact && styles.rowCompact]}>
+              <Pressable onPress={activateAll} style={[styles.actionBtn, styles.actionGood]}>
+                <Text style={styles.actionTxt}>Activar todo</Text>
+              </Pressable>
+              <Pressable onPress={useRecommended} style={[styles.actionBtn, styles.actionNeutral]}>
+                <Text style={styles.actionTxt}>Recomendadas</Text>
+              </Pressable>
+              <Pressable onPress={deactivateAll} style={[styles.actionBtn, styles.actionWarn]}>
+                <Text style={styles.actionTxt}>Apagar todo</Text>
+              </Pressable>
+            </View>
+            <View style={[styles.row, compact && styles.rowCompact]}>
+              <Pressable onPress={activateFiltered} style={[styles.actionBtn, styles.actionGood]}>
+                <Text style={styles.actionTxt}>Activar visibles</Text>
+              </Pressable>
+              <Pressable onPress={deactivateFiltered} style={[styles.actionBtn, styles.actionWarn]}>
+                <Text style={styles.actionTxt}>Apagar visibles</Text>
+              </Pressable>
+            </View>
 
-        <Text style={styles.helperText}>
-          Capas activas: {activeLayers.length}/{availableLayers.length}
-        </Text>
+            <Text style={styles.helperText}>
+              Capas activas: {activeLayers.length}/{availableLayers.length}
+            </Text>
 
-        <View style={styles.layerList}>
-          {filteredLayers.map((layer) => {
-            const stat = statsByLayer.get(layer.id);
-            return (
-              <View key={layer.id} style={styles.layerRow}>
-                <View style={[styles.dot, { backgroundColor: layer.color }]} />
-                <View style={styles.layerBody}>
-                  <Text style={styles.layerTitle}>
-                    {layer.name} · {layer.rarity}
-                  </Text>
-                  <Text style={styles.layerMeta}>{layer.description}</Text>
-                  <Text style={styles.layerMeta}>
-                    Loot: {layer.lootHint}
-                    {hasSearched && stat ? ` | En mapa: ${stat.count} | Cercana: ${stat.nearest}b` : ''}
-                  </Text>
-                </View>
-                <Switch onValueChange={() => toggleLayer(layer.id)} value={activeLayers.includes(layer.id)} />
-              </View>
-            );
-          })}
-        </View>
+            <View style={styles.layerList}>
+              {filteredLayers.map((layer) => {
+                const stat = statsByLayer.get(layer.id);
+                return (
+                  <View key={layer.id} style={styles.layerRow}>
+                    <View style={[styles.dot, { backgroundColor: layer.color }]} />
+                    <View style={styles.layerBody}>
+                      <Text style={styles.layerTitle}>
+                        {layer.name} · {layer.rarity}
+                      </Text>
+                      <Text style={styles.layerMeta}>{layer.description}</Text>
+                      <Text style={styles.layerMeta}>
+                        Loot: {layer.lootHint}
+                        {hasSearched && stat ? ` | En mapa: ${stat.count} | Cercana: ${stat.nearest}b` : ''}
+                      </Text>
+                    </View>
+                    <Switch onValueChange={() => toggleLayer(layer.id)} value={activeLayers.includes(layer.id)} />
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        ) : (
+          <Text style={styles.helperText}>
+            Modo exacto activo: el filtrado de capas se gestiona dentro del mapa exacto.
+          </Text>
+        )}
 
         <Pressable onPress={runSearch} style={styles.searchBtn}>
-          <Text style={styles.searchBtnTxt}>Buscar estructuras con esta seed</Text>
+          <Text style={styles.searchBtnTxt}>
+            {useExactMap ? 'Cargar mapa exacto con esta seed' : 'Buscar estructuras con esta seed'}
+          </Text>
         </Pressable>
       </SectionCard>
 
@@ -1246,6 +1279,34 @@ export function SeedMapScreen() {
       >
         {!hasSearched ? (
           <Text style={styles.empty}>Aun no hay resultados cargados.</Text>
+        ) : useExactMap ? (
+          <>
+            <Text style={styles.helperText}>
+              Mapa exacto usando tecnologia de mcseedmap.net (cubiomes + bedrockified). Debe coincidir mucho mejor con tu mundo real.
+            </Text>
+            <View style={[styles.exactMapFrame, { height: compact ? 560 : 720 }]}>
+              {Platform.OS === 'web' ? (
+                createElement('iframe', {
+                  src: exactMapUrl,
+                  style: { border: '0', width: '100%', height: '100%', borderRadius: '10px', backgroundColor: '#0b1510' },
+                  title: 'Mapa exacto de seed',
+                })
+              ) : (
+                <WebView domStorageEnabled javaScriptEnabled source={{ uri: exactMapUrl }} startInLoadingState style={styles.exactMapNative} />
+              )}
+            </View>
+            <View style={[styles.row, compact && styles.rowCompact]}>
+              <Pressable onPress={() => setExactMapReload((value) => value + 1)} style={[styles.actionBtn, styles.actionGood]}>
+                <Text style={styles.actionTxt}>Recargar mapa exacto</Text>
+              </Pressable>
+              <Pressable onPress={() => Linking.openURL(exactMapUrl)} style={[styles.actionBtn, styles.actionNeutral]}>
+                <Text style={styles.actionTxt}>Abrir mapa exacto</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.helperText}>
+              Si no centra en X/Z automaticamente, usa buscador interno del mapa exacto y coloca X {exactCenterX} / Z {exactCenterZ}.
+            </Text>
+          </>
         ) : (
           <>
             <View style={styles.chips}>
@@ -1524,30 +1585,32 @@ export function SeedMapScreen() {
         )}
       </SectionCard>
 
-      <SectionCard subtitle="Ordenados por distancia desde tus coordenadas X/Z" title="Resultados Cercanos">
-        {!hasSearched ? (
-          <Text style={styles.empty}>No hay resultados aun.</Text>
-        ) : nearest.length ? (
-          <View style={styles.results}>
-            {nearest.map((entry) => (
-              <Pressable key={entry.id} onPress={() => setSelectedMarkerId(entry.id)} style={styles.resultRow}>
-                <View style={[styles.dot, { backgroundColor: entry.color }]} />
-                <View style={styles.layerBody}>
-                  <Text style={styles.layerTitle}>{entry.layer.name}</Text>
-                  <Text style={styles.layerMeta}>
-                    X {Math.round(entry.x)} | Z {Math.round(entry.z)} | Distancia {entry.distance} bloques
-                  </Text>
-                  <Text style={styles.layerMeta}>Bioma: {entry.biome.biomeName}</Text>
-                  <Text style={styles.layerMeta}>Terreno: {entry.terrain.terrainName}</Text>
-                  <Text style={styles.layerMeta}>Loot/utilidad: {entry.layer.lootHint}</Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <Text style={styles.empty}>Sin resultados con este filtro. Activa mas capas o aumenta el radio.</Text>
-        )}
-      </SectionCard>
+      {!useExactMap ? (
+        <SectionCard subtitle="Ordenados por distancia desde tus coordenadas X/Z" title="Resultados Cercanos">
+          {!hasSearched ? (
+            <Text style={styles.empty}>No hay resultados aun.</Text>
+          ) : nearest.length ? (
+            <View style={styles.results}>
+              {nearest.map((entry) => (
+                <Pressable key={entry.id} onPress={() => setSelectedMarkerId(entry.id)} style={styles.resultRow}>
+                  <View style={[styles.dot, { backgroundColor: entry.color }]} />
+                  <View style={styles.layerBody}>
+                    <Text style={styles.layerTitle}>{entry.layer.name}</Text>
+                    <Text style={styles.layerMeta}>
+                      X {Math.round(entry.x)} | Z {Math.round(entry.z)} | Distancia {entry.distance} bloques
+                    </Text>
+                    <Text style={styles.layerMeta}>Bioma: {entry.biome.biomeName}</Text>
+                    <Text style={styles.layerMeta}>Terreno: {entry.terrain.terrainName}</Text>
+                    <Text style={styles.layerMeta}>Loot/utilidad: {entry.layer.lootHint}</Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.empty}>Sin resultados con este filtro. Activa mas capas o usa el mapa exacto.</Text>
+          )}
+        </SectionCard>
+      ) : null}
     </ScrollView>
   );
 }
@@ -1632,6 +1695,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     marginBottom: spacing.xs,
+    width: '100%',
+  },
+  exactMapFrame: {
+    backgroundColor: '#0F1C14',
+    borderColor: '#2E4B39',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginTop: spacing.sm,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  exactMapNative: {
+    backgroundColor: '#0F1C14',
+    flex: 1,
     width: '100%',
   },
   mapRowWrap: {
