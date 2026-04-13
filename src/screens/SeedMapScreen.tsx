@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
 import {
   generateBiomeCells,
+  getFirstSpawnPoint,
   generateTerrainCells,
   generateStructurePoints,
   getBiomeAtPoint,
@@ -186,6 +187,13 @@ interface BoundaryLine {
   width: number;
 }
 
+interface PanAnchor {
+  centerX: number;
+  centerZ: number;
+  pointerX: number;
+  pointerY: number;
+}
+
 export function SeedMapScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -201,6 +209,9 @@ export function SeedMapScreen() {
   const [zoom, setZoom] = useState(1);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const [openAtSpawn, setOpenAtSpawn] = useState(true);
+  const [panEnabled, setPanEnabled] = useState(true);
+  const [isPanning, setIsPanning] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [showBiomes, setShowBiomes] = useState(false);
   const [showTerrain, setShowTerrain] = useState(true);
@@ -222,6 +233,8 @@ export function SeedMapScreen() {
     radius: 2500,
     seed: '0',
   });
+  const panAnchorRef = useRef<PanAnchor | null>(null);
+  const centerRef = useRef({ centerX: 0, centerZ: 0 });
 
   const [activeLayers, setActiveLayers] = useState<string[]>(() =>
     structureLayers.filter((layer) => layer.dimension === 'overworld' && layer.defaultEnabled).map((layer) => layer.id)
@@ -231,6 +244,32 @@ export function SeedMapScreen() {
     () => structureLayers.filter((layer) => layer.dimension === dimension),
     [dimension]
   );
+
+  const spawnPoint = useMemo(
+    () =>
+      getFirstSpawnPoint({
+        dimension,
+        edition,
+        seed: seed.trim() || '0',
+      }),
+    [dimension, edition, seed]
+  );
+
+  useEffect(() => {
+    centerRef.current = {
+      centerX: applied.centerX,
+      centerZ: applied.centerZ,
+    };
+  }, [applied.centerX, applied.centerZ]);
+
+  useEffect(() => {
+    if (!openAtSpawn) {
+      return;
+    }
+    setX(spawnPoint.x.toString());
+    setY(spawnPoint.y.toString());
+    setZ(spawnPoint.z.toString());
+  }, [openAtSpawn, spawnPoint.x, spawnPoint.y, spawnPoint.z]);
 
   useEffect(() => {
     const allowed = new Set(availableLayers.map((layer) => layer.id));
@@ -661,6 +700,59 @@ export function SeedMapScreen() {
     });
   };
 
+  const blocksPerPixel = (effectiveRadius * 2) / mapSize;
+
+  const beginPan = (pointerX: number, pointerY: number) => {
+    if (!panEnabled || !hasSearched) {
+      return false;
+    }
+    panAnchorRef.current = {
+      centerX: centerRef.current.centerX,
+      centerZ: centerRef.current.centerZ,
+      pointerX,
+      pointerY,
+    };
+    setIsPanning(true);
+    setOpenAtSpawn(false);
+    setCursor((prev) => ({ ...prev, active: false }));
+    return true;
+  };
+
+  const movePan = (pointerX: number, pointerY: number) => {
+    const anchor = panAnchorRef.current;
+    if (!panEnabled || !anchor) {
+      return;
+    }
+
+    const deltaX = pointerX - anchor.pointerX;
+    const deltaY = pointerY - anchor.pointerY;
+    const nextCenterX = Number((anchor.centerX - deltaX * blocksPerPixel).toFixed(2));
+    const nextCenterZ = Number((anchor.centerZ - deltaY * blocksPerPixel).toFixed(2));
+
+    setApplied((prev) => ({
+      ...prev,
+      centerX: nextCenterX,
+      centerZ: nextCenterZ,
+    }));
+  };
+
+  const endPan = () => {
+    if (!panAnchorRef.current) {
+      return;
+    }
+    panAnchorRef.current = null;
+    setIsPanning(false);
+    setX(Math.round(centerRef.current.centerX).toString());
+    setZ(Math.round(centerRef.current.centerZ).toString());
+    setCursor({
+      active: false,
+      canvasX: mapSize / 2,
+      canvasY: mapSize / 2,
+      worldX: centerRef.current.centerX,
+      worldZ: centerRef.current.centerZ,
+    });
+  };
+
   const cursorCellInfo = useMemo(() => {
     if (!hasSearched || !biomeCells.length || !terrainCells.length) {
       return null;
@@ -699,11 +791,20 @@ export function SeedMapScreen() {
     setActiveLayers((prev) => (prev.includes(layerId) ? prev.filter((id) => id !== layerId) : [...prev, layerId]));
 
   const runSearch = () => {
-    const nextCenterX = parseCoordinate(x);
-    const nextCenterZ = parseCoordinate(z);
+    const spawnCenter = spawnPoint;
+    const nextCenterX = openAtSpawn ? spawnCenter.x : parseCoordinate(x);
+    const nextCenterY = openAtSpawn ? spawnCenter.y : parseCoordinate(y);
+    const nextCenterZ = openAtSpawn ? spawnCenter.z : parseCoordinate(z);
+
+    if (openAtSpawn) {
+      setX(nextCenterX.toString());
+      setY(nextCenterY.toString());
+      setZ(nextCenterZ.toString());
+    }
+
     setApplied({
       centerX: nextCenterX,
-      centerY: parseCoordinate(y),
+      centerY: nextCenterY,
       centerZ: nextCenterZ,
       radius: parseRadius(radiusInput),
       seed: seed.trim() || '0',
@@ -723,6 +824,7 @@ export function SeedMapScreen() {
     if (!selectedMarker) {
       return;
     }
+    setOpenAtSpawn(false);
     setX(Math.round(selectedMarker.x).toString());
     setZ(Math.round(selectedMarker.z).toString());
     setApplied((prev) => ({ ...prev, centerX: selectedMarker.x, centerZ: selectedMarker.z }));
@@ -801,6 +903,43 @@ export function SeedMapScreen() {
             </View>
           </View>
         </View>
+
+        <Text style={styles.label}>Centro inicial</Text>
+        <View style={styles.chips}>
+          <Pressable onPress={() => setOpenAtSpawn((value) => !value)} style={[styles.chip, openAtSpawn && styles.chipActive]}>
+            <Text style={[styles.chipText, openAtSpawn && styles.chipTextActive]}>
+              {openAtSpawn ? 'Spawn ON' : 'Spawn OFF'}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setOpenAtSpawn(true);
+              setX(spawnPoint.x.toString());
+              setY(spawnPoint.y.toString());
+              setZ(spawnPoint.z.toString());
+              if (hasSearched) {
+                setApplied((prev) => ({
+                  ...prev,
+                  centerX: spawnPoint.x,
+                  centerY: spawnPoint.y,
+                  centerZ: spawnPoint.z,
+                }));
+              }
+            }}
+            style={[styles.chip, styles.chipActiveSecondary]}
+          >
+            <Text style={[styles.chipText, styles.chipTextActiveSecondary]}>Ir a spawn</Text>
+          </Pressable>
+          <Pressable onPress={() => setPanEnabled((value) => !value)} style={[styles.chip, panEnabled && styles.chipActive]}>
+            <Text style={[styles.chipText, panEnabled && styles.chipTextActive]}>
+              {panEnabled ? 'Mover mapa ON' : 'Mover mapa OFF'}
+            </Text>
+          </Pressable>
+        </View>
+        <Text style={styles.helperText}>
+          Spawn aprox: X {spawnPoint.x} / Y {spawnPoint.y} / Z {spawnPoint.z} | {spawnPoint.biomeName} |{' '}
+          {spawnPoint.terrainName}
+        </Text>
 
         <Text style={styles.label}>Edicion</Text>
         <View style={styles.chips}>
@@ -938,6 +1077,11 @@ export function SeedMapScreen() {
                 <Text style={[styles.chipText, showLabels && styles.chipTextActive]}>{showLabels ? 'Etiquetas ON' : 'Etiquetas OFF'}</Text>
               </Pressable>
             </View>
+            <Text style={styles.helperText}>
+              {panEnabled
+                ? 'Arrastra el mapa con el dedo/mouse para moverlo libremente.'
+                : 'Activa "Mover mapa ON" para desplazarte como en Google Maps.'}
+            </Text>
 
             <View style={styles.mapFrame}>
               <View style={[styles.topRuler, { width: mapSize }]}>
@@ -974,16 +1118,47 @@ export function SeedMapScreen() {
                 <View
                   onMoveShouldSetResponder={() => true}
                   onPointerMove={(event) => {
+                    if (panEnabled && panAnchorRef.current) {
+                      return;
+                    }
                     const native = event.nativeEvent as unknown as { offsetX?: number; offsetY?: number };
                     updateCursor(native.offsetX ?? mapSize / 2, native.offsetY ?? mapSize / 2, true);
                   }}
-                  onPointerLeave={() => setCursor((prev) => ({ ...prev, active: false }))}
-                  onResponderGrant={(event) => updateCursor(event.nativeEvent.locationX, event.nativeEvent.locationY, true)}
-                  onResponderMove={(event) => updateCursor(event.nativeEvent.locationX, event.nativeEvent.locationY, true)}
-                  onResponderRelease={() => setCursor((prev) => ({ ...prev, active: false }))}
-                  onResponderTerminate={() => setCursor((prev) => ({ ...prev, active: false }))}
+                  onPointerLeave={() => {
+                    if (!panAnchorRef.current) {
+                      setCursor((prev) => ({ ...prev, active: false }));
+                    }
+                  }}
+                  onResponderGrant={(event) => {
+                    if (beginPan(event.nativeEvent.locationX, event.nativeEvent.locationY)) {
+                      return;
+                    }
+                    updateCursor(event.nativeEvent.locationX, event.nativeEvent.locationY, true);
+                  }}
+                  onResponderMove={(event) => {
+                    if (panEnabled && panAnchorRef.current) {
+                      movePan(event.nativeEvent.locationX, event.nativeEvent.locationY);
+                      return;
+                    }
+                    updateCursor(event.nativeEvent.locationX, event.nativeEvent.locationY, true);
+                  }}
+                  onResponderRelease={(event) => {
+                    if (panEnabled && panAnchorRef.current) {
+                      movePan(event.nativeEvent.locationX, event.nativeEvent.locationY);
+                      endPan();
+                      return;
+                    }
+                    setCursor((prev) => ({ ...prev, active: false }));
+                  }}
+                  onResponderTerminate={() => {
+                    if (panEnabled && panAnchorRef.current) {
+                      endPan();
+                      return;
+                    }
+                    setCursor((prev) => ({ ...prev, active: false }));
+                  }}
                   onStartShouldSetResponder={() => true}
-                  style={[styles.mapCanvas, { height: mapSize, width: mapSize }]}
+                  style={[styles.mapCanvas, isPanning && styles.mapCanvasPanning, { height: mapSize, width: mapSize }]}
                 >
                   {showTerrain
                     ? terrainRenderCells.map((cell) => (
@@ -1067,6 +1242,7 @@ export function SeedMapScreen() {
 
             <View style={styles.cursorBar}>
               <Text style={styles.cursorText}>
+                Modo: {panEnabled ? (isPanning ? 'Moviendo mapa' : 'Mover mapa') : 'Cursor'} |{' '}
                 Cursor X: {Math.round(cursor.worldX)} | Cursor Z: {Math.round(cursor.worldZ)} | Altura Y: {Math.round(applied.centerY)} | Bioma:{' '}
                 {cursorCellInfo?.biomeName ?? centerBiome?.biomeName ?? 'N/A'} | Terreno:{' '}
                 {cursorCellInfo?.terrainName ?? centerTerrain?.terrainName ?? 'N/A'}
@@ -1298,6 +1474,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     position: 'relative',
+  },
+  mapCanvasPanning: {
+    borderColor: '#E4C27B',
+    borderWidth: 2,
   },
   biomeCell: {
     position: 'absolute',

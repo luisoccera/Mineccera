@@ -52,6 +52,14 @@ export interface TerrainCell {
   z: number;
 }
 
+export interface SpawnPoint {
+  biomeName: string;
+  terrainName: string;
+  x: number;
+  y: number;
+  z: number;
+}
+
 interface BiomeDefinition {
   color: string;
   id: string;
@@ -773,6 +781,130 @@ export const getTerrainAtPoint = ({
     return { terrainColor: '#5F8457', terrainId: 'flat-plains', terrainName: 'Planicie', x, z };
   }
   return { terrainColor: '#4E7D4B', terrainId: 'mixed-land', terrainName: 'Terreno mixto', x, z };
+};
+
+const isValidSpawnBiome = (biomeId: string) =>
+  biomeId !== 'ocean' &&
+  biomeId !== 'deep-ocean' &&
+  biomeId !== 'warm-ocean' &&
+  biomeId !== 'lava-sea' &&
+  biomeId !== 'void';
+
+const isValidSpawnTerrain = (terrainId: string) =>
+  terrainId !== 'water' && terrainId !== 'lava-sea' && terrainId !== 'void';
+
+const estimateSpawnY = (terrainId: string) => {
+  if (terrainId === 'mountain' || terrainId === 'high-islands') {
+    return 96;
+  }
+  if (terrainId === 'hills' || terrainId === 'basalt-ridges') {
+    return 78;
+  }
+  if (terrainId === 'flat-plains' || terrainId === 'dry-plains') {
+    return 66;
+  }
+  if (terrainId === 'river') {
+    return 63;
+  }
+  return 70;
+};
+
+export const getFirstSpawnPoint = ({
+  dimension,
+  edition,
+  seed,
+}: {
+  dimension: SeedDimension;
+  edition: SeedEdition;
+  seed: string;
+}): SpawnPoint => {
+  const normalizedSeed = seed.trim() || '0';
+  const spawnSeed = parseSeedValue(normalizedSeed) ^ (edition === 'java_1_21' ? 0x61c88647 : 0x9e3779b9);
+  const rng = createRng(spawnSeed);
+
+  const candidates: Array<{ x: number; z: number }> = [{ x: 0, z: 0 }];
+  const maxRings = 16;
+  for (let ring = 1; ring <= maxRings; ring += 1) {
+    const radius = ring * 96;
+    const pointsInRing = 8 + ring * 3;
+    const angleOffset = rng() * Math.PI * 2;
+
+    for (let i = 0; i < pointsInRing; i += 1) {
+      const jitter = (rng() - 0.5) * 34;
+      const angle = angleOffset + (i / pointsInRing) * Math.PI * 2 + (rng() - 0.5) * 0.18;
+      const x = Math.round(Math.cos(angle) * (radius + jitter));
+      const z = Math.round(Math.sin(angle) * (radius + jitter));
+      candidates.push({ x, z });
+    }
+  }
+
+  let selected = candidates[0];
+  for (const candidate of candidates) {
+    const biome = getBiomeAtPoint({
+      dimension: 'overworld',
+      edition,
+      seed: normalizedSeed,
+      x: candidate.x,
+      z: candidate.z,
+    });
+    const terrain = getTerrainAtPoint({
+      dimension: 'overworld',
+      edition,
+      seed: normalizedSeed,
+      x: candidate.x,
+      z: candidate.z,
+    });
+
+    if (isValidSpawnBiome(biome.biomeId) && isValidSpawnTerrain(terrain.terrainId)) {
+      selected = candidate;
+      break;
+    }
+  }
+
+  const overworldBiome = getBiomeAtPoint({
+    dimension: 'overworld',
+    edition,
+    seed: normalizedSeed,
+    x: selected.x,
+    z: selected.z,
+  });
+  const overworldTerrain = getTerrainAtPoint({
+    dimension: 'overworld',
+    edition,
+    seed: normalizedSeed,
+    x: selected.x,
+    z: selected.z,
+  });
+
+  const overworldSpawn: SpawnPoint = {
+    biomeName: overworldBiome.biomeName,
+    terrainName: overworldTerrain.terrainName,
+    x: Math.round(selected.x),
+    y: estimateSpawnY(overworldTerrain.terrainId),
+    z: Math.round(selected.z),
+  };
+
+  if (dimension === 'nether') {
+    return {
+      biomeName: 'Nether Portal Spawn',
+      terrainName: 'Entrada aproximada',
+      x: Math.round(overworldSpawn.x / 8),
+      y: 64,
+      z: Math.round(overworldSpawn.z / 8),
+    };
+  }
+
+  if (dimension === 'end') {
+    return {
+      biomeName: 'The End',
+      terrainName: 'Isla principal',
+      x: 0,
+      y: 64,
+      z: 0,
+    };
+  }
+
+  return overworldSpawn;
 };
 
 export const generateBiomeCells = ({
