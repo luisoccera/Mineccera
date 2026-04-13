@@ -127,6 +127,8 @@ const isWaterLikeTerrain = (terrainId: string) =>
   terrainId === 'warm-ocean' ||
   terrainId === 'lava-sea';
 
+const PAN_DRAG_THRESHOLD_PX = 8;
+
 type CategoryFilter = 'all' | StructureCategory;
 
 interface AppliedSearch {
@@ -242,6 +244,7 @@ export function SeedMapScreen() {
     seed: '0',
   });
   const panAnchorRef = useRef<PanAnchor | null>(null);
+  const panMovedRef = useRef(false);
   const centerRef = useRef({ centerX: 0, centerZ: 0 });
 
   const [activeLayers, setActiveLayers] = useState<string[]>(() =>
@@ -734,9 +737,9 @@ export function SeedMapScreen() {
       pointerX,
       pointerY,
     };
-    setIsPanning(true);
-    setOpenAtSpawn(false);
-    setCursor((prev) => ({ ...prev, active: false }));
+    panMovedRef.current = false;
+    setIsPanning(false);
+    updateCursor(pointerX, pointerY, true);
     return true;
   };
 
@@ -748,6 +751,19 @@ export function SeedMapScreen() {
 
     const deltaX = pointerX - anchor.pointerX;
     const deltaY = pointerY - anchor.pointerY;
+
+    if (!panMovedRef.current) {
+      if (Math.abs(deltaX) < PAN_DRAG_THRESHOLD_PX && Math.abs(deltaY) < PAN_DRAG_THRESHOLD_PX) {
+        updateCursor(pointerX, pointerY, true);
+        return;
+      }
+      panMovedRef.current = true;
+      setIsPanning(true);
+      setOpenAtSpawn(false);
+      setHoveredMarkerId(null);
+      setCursor((prev) => ({ ...prev, active: false }));
+    }
+
     const nextCenterX = Number((anchor.centerX - deltaX * blocksPerPixel).toFixed(2));
     const nextCenterZ = Number((anchor.centerZ - deltaY * blocksPerPixel).toFixed(2));
 
@@ -758,21 +774,27 @@ export function SeedMapScreen() {
     }));
   };
 
-  const endPan = () => {
+  const endPan = (pointerX: number, pointerY: number) => {
     if (!panAnchorRef.current) {
       return;
     }
+    const moved = panMovedRef.current;
     panAnchorRef.current = null;
+    panMovedRef.current = false;
     setIsPanning(false);
-    setX(Math.round(centerRef.current.centerX).toString());
-    setZ(Math.round(centerRef.current.centerZ).toString());
-    setCursor({
-      active: false,
-      canvasX: mapSize / 2,
-      canvasY: mapSize / 2,
-      worldX: centerRef.current.centerX,
-      worldZ: centerRef.current.centerZ,
-    });
+    if (moved) {
+      setX(Math.round(centerRef.current.centerX).toString());
+      setZ(Math.round(centerRef.current.centerZ).toString());
+      setCursor({
+        active: false,
+        canvasX: mapSize / 2,
+        canvasY: mapSize / 2,
+        worldX: centerRef.current.centerX,
+        worldZ: centerRef.current.centerZ,
+      });
+      return;
+    }
+    updateCursor(pointerX, pointerY, true);
   };
 
   const cursorCellInfo = useMemo(() => {
@@ -791,8 +813,26 @@ export function SeedMapScreen() {
     };
   }, [biomeCellSize, biomeCells, biomeCellsPerSide, cursor.canvasX, cursor.canvasY, hasSearched, terrainCells]);
 
+  const markerNearCursor = useMemo<Marker | null>(() => {
+    if (!cursor.active || isPanning) {
+      return null;
+    }
+    let nearest: Marker | null = null;
+    let minDistance = Number.POSITIVE_INFINITY;
+    for (const marker of markers) {
+      const dx = marker.left - cursor.canvasX;
+      const dy = marker.top - cursor.canvasY;
+      const distance = Math.hypot(dx, dy);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearest = marker;
+      }
+    }
+    return minDistance <= 16 ? nearest : null;
+  }, [cursor.active, cursor.canvasX, cursor.canvasY, isPanning, markers]);
+
   const markerTooltip = useMemo<MapTooltip | null>(() => {
-    const marker = hoveredMarker ?? selectedMarker;
+    const marker = hoveredMarker ?? selectedMarker ?? markerNearCursor;
     if (!marker) {
       return null;
     }
@@ -803,7 +843,7 @@ export function SeedMapScreen() {
       title: marker.layer.name,
       top: pos.top,
     };
-  }, [applied.centerY, hoveredMarker, selectedMarker]);
+  }, [applied.centerY, hoveredMarker, markerNearCursor, selectedMarker]);
 
   const cursorTooltip = useMemo<MapTooltip | null>(() => {
     if (!cursor.active || isPanning || hoveredMarker) {
@@ -1197,14 +1237,14 @@ export function SeedMapScreen() {
                   onResponderRelease={(event) => {
                     if (panEnabled && panAnchorRef.current) {
                       movePan(event.nativeEvent.locationX, event.nativeEvent.locationY);
-                      endPan();
+                      endPan(event.nativeEvent.locationX, event.nativeEvent.locationY);
                       return;
                     }
                     updateCursor(event.nativeEvent.locationX, event.nativeEvent.locationY, true);
                   }}
                   onResponderTerminate={() => {
                     if (panEnabled && panAnchorRef.current) {
-                      endPan();
+                      endPan(mapSize / 2, mapSize / 2);
                       return;
                     }
                     setCursor((prev) => ({ ...prev, active: false }));
