@@ -30,6 +30,8 @@ const toErrorMessage = (error: unknown) => {
 export function SkinScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
+  const cardsPerRow = deviceClass === 'xl' || deviceClass === 'desktop' ? 4 : compact ? 2 : 3;
+  const cardWidth = cardsPerRow === 4 ? '24.2%' : cardsPerRow === 3 ? '32.2%' : '49%';
 
   const [query, setQuery] = useState('spider man');
   const [activeQuery, setActiveQuery] = useState('');
@@ -175,45 +177,47 @@ export function SkinScreen() {
         {!loading && !results.length ? (
           <Text style={styles.emptyText}>Aqui veras las skins encontradas.</Text>
         ) : (
-          <View style={styles.resultList}>
+          <View style={styles.resultGrid}>
             {results.map((item) => {
               const broken = brokenImages[item.id] === true;
               return (
-                <View key={item.id} style={styles.resultCard}>
-                  <View style={[styles.imageWrap, compact && styles.imageWrapCompact]}>
-                    {item.previewUrl && !broken ? (
-                      <Image
-                        onError={() => setBrokenImages((prev) => ({ ...prev, [item.id]: true }))}
-                        source={{ uri: item.previewUrl }}
-                        style={styles.image}
-                      />
-                    ) : (
-                      <View style={styles.imageFallback}>
-                        <Text numberOfLines={3} style={styles.imageFallbackText}>
-                          Sin vista previa
-                        </Text>
+                <View key={item.id} style={[styles.resultCell, { width: cardWidth }]}>
+                  <View style={styles.resultCard}>
+                    <View style={[styles.imageWrap, compact && styles.imageWrapCompact]}>
+                      {item.previewUrl && !broken ? (
+                        <Image
+                          onError={() => setBrokenImages((prev) => ({ ...prev, [item.id]: true }))}
+                          source={{ uri: item.previewUrl }}
+                          style={styles.image}
+                        />
+                      ) : (
+                        <View style={styles.imageFallback}>
+                          <Text numberOfLines={3} style={styles.imageFallbackText}>
+                            Sin vista previa
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.cardBody}>
+                      <Text numberOfLines={2} style={styles.cardTitle}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.cardMeta}>ID: {item.id}</Text>
+                      <Text style={styles.cardMeta}>Publicacion: {item.publishedAt || 'N/A'}</Text>
+
+                      <View style={[styles.linkRow, compact && styles.linkRowCompact]}>
+                        <Pressable onPress={() => Linking.openURL(item.skinUrl)} style={[styles.linkBtn, styles.linkSource]}>
+                          <Text style={styles.linkBtnTextSource}>Ver fuente</Text>
+                        </Pressable>
+                        <Pressable
+                          disabled={!item.downloadUrl}
+                          onPress={() => item.downloadUrl && Linking.openURL(item.downloadUrl)}
+                          style={[styles.linkBtn, styles.linkDownload, !item.downloadUrl && styles.buttonDisabled]}
+                        >
+                          <Text style={styles.linkBtnText}>Descargar PNG</Text>
+                        </Pressable>
                       </View>
-                    )}
-                  </View>
-
-                  <View style={styles.cardBody}>
-                    <Text numberOfLines={2} style={styles.cardTitle}>
-                      {item.title}
-                    </Text>
-                    <Text style={styles.cardMeta}>ID: {item.id}</Text>
-                    <Text style={styles.cardMeta}>Publicacion: {item.publishedAt || 'N/A'}</Text>
-
-                    <View style={[styles.linkRow, compact && styles.linkRowCompact]}>
-                      <Pressable onPress={() => Linking.openURL(item.skinUrl)} style={[styles.linkBtn, styles.linkSource]}>
-                        <Text style={styles.linkBtnText}>Ver fuente</Text>
-                      </Pressable>
-                      <Pressable
-                        disabled={!item.downloadUrl}
-                        onPress={() => item.downloadUrl && Linking.openURL(item.downloadUrl)}
-                        style={[styles.linkBtn, styles.linkDownload, !item.downloadUrl && styles.buttonDisabled]}
-                      >
-                        <Text style={styles.linkBtnText}>Descargar PNG</Text>
-                      </Pressable>
                     </View>
                   </View>
                 </View>
@@ -372,6 +376,11 @@ const styles = StyleSheet.create({
     fontFamily: font.display,
     fontSize: 10,
   },
+  linkBtnTextSource: {
+    color: palette.text,
+    fontFamily: font.display,
+    fontSize: 8.5,
+  },
   linkDownload: {
     backgroundColor: '#EAF4E2',
     borderColor: '#9AB585',
@@ -412,11 +421,18 @@ const styles = StyleSheet.create({
     borderColor: '#BFA779',
     borderRadius: radius.md,
     borderWidth: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: spacing.sm,
+    height: '100%',
     padding: spacing.sm,
   },
-  resultList: {
+  resultCell: {
+    marginBottom: spacing.sm,
+  },
+  resultGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
+    justifyContent: 'space-between',
   },
 });
