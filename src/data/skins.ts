@@ -28,6 +28,7 @@ interface ParsedSkinResult {
 }
 
 const ALL_ORIGINS_PREFIX = 'https://api.allorigins.win/raw?url=';
+const SKINDEX_BASE = 'https://www.minecraftskins.com';
 
 const monthMap: Record<string, string> = {
   Apr: '04',
@@ -80,6 +81,26 @@ const toPreviewUrl = (yyyyMmDd: string, slug: string, id: string) =>
 const toDownloadUrl = (yyyyMmDd: string, slug: string, id: string) =>
   `https://www.minecraftskins.com/uploads/skins/${yyyyMmDd}/${slug}-${id}.png`;
 
+const toDownloadEndpoint = (id: string) => `${SKINDEX_BASE}/skin/download/${id}`;
+
+const normalizeSkinsUrl = (url: string) => {
+  const clean = decodeUrl(url).trim().replace(/["')\]]+$/, '');
+  if (!clean) {
+    return '';
+  }
+
+  if (clean.startsWith('//')) {
+    return `https:${clean}`;
+  }
+  if (clean.startsWith('/')) {
+    return `${SKINDEX_BASE}${clean}`;
+  }
+  if (/^http:\/\/www\.minecraftskins\.com/i.test(clean)) {
+    return clean.replace(/^http:\/\//i, 'https://');
+  }
+  return clean;
+};
+
 const parseAssetPathFromDownloadUrl = (downloadUrl: string) => {
   const match = /uploads\/skins\/(\d{4})\/(\d{2})\/(\d{2})\//i.exec(downloadUrl);
   if (!match) {
@@ -126,9 +147,25 @@ const parseYahooDate = (line: string) => {
 
 const parseUploadsSkinUrl = (line: string) => {
   const cleaned = removeQueryHighlight(line);
+  const match = /(https?:\/\/www\.minecraftskins\.com|\/)?\/?uploads\/skins\/\d{4}\/\d{2}\/\d{2}\/[a-z0-9\-_.]+(?:-\d+)?\.png(?:\?v\d+)?/i.exec(
+    cleaned
+  );
+  return normalizeSkinsUrl(match?.[0] || '');
+};
+
+const parsePreviewSkinUrl = (line: string) => {
+  const cleaned = removeQueryHighlight(line);
   const match =
-    /https:\/\/www\.minecraftskins\.com\/uploads\/skins\/\d{4}\/\d{2}\/\d{2}\/[a-z0-9\-_.]+-\d+\.png/i.exec(cleaned);
-  return match?.[0] || '';
+    /(https?:\/\/www\.minecraftskins\.com|\/)?\/?uploads\/preview-skins\/\d{4}\/\d{2}\/\d{2}\/[a-z0-9\-_.]+\.png(?:\?v\d+)?/i.exec(
+      cleaned
+    );
+  return normalizeSkinsUrl(match?.[0] || '');
+};
+
+const parseDownloadEndpoint = (line: string) => {
+  const cleaned = removeQueryHighlight(line);
+  const match = /(https?:\/\/www\.minecraftskins\.com)?\/skin\/download\/\d+(?:\?[^)\s"]+)?/i.exec(cleaned);
+  return normalizeSkinsUrl(match?.[0] || '');
 };
 
 const getUniqueResults = (results: ParsedSkinResult[]) => {
@@ -167,18 +204,22 @@ const parseSkinResultsFromYahoo = (markdown: string) => {
     const title = parseTitle(line) || slug.replace(/-/g, ' ');
     const publishedPath = parseYahooDate(line);
     const embeddedDownloadUrl = parseUploadsSkinUrl(line);
+    const embeddedPreviewUrl = parsePreviewSkinUrl(line);
+    const downloadEndpoint = parseDownloadEndpoint(line);
 
-    let downloadUrl = '';
-    let previewUrl = '';
+    let downloadUrl = downloadEndpoint || toDownloadEndpoint(id);
+    let previewUrl = embeddedPreviewUrl;
     let publishedAt = 'N/A';
 
     if (embeddedDownloadUrl) {
-      downloadUrl = embeddedDownloadUrl;
-      previewUrl = embeddedDownloadUrl.replace('/uploads/skins/', '/uploads/preview-skins/');
-      publishedAt = parseAssetPathFromDownloadUrl(downloadUrl) ?? publishedAt;
+      if (!previewUrl) {
+        previewUrl = embeddedDownloadUrl.replace('/uploads/skins/', '/uploads/preview-skins/');
+      }
+      publishedAt = parseAssetPathFromDownloadUrl(embeddedDownloadUrl) ?? publishedAt;
     } else if (publishedPath) {
-      downloadUrl = toDownloadUrl(publishedPath, slug, id);
-      previewUrl = toPreviewUrl(publishedPath, slug, id);
+      if (!previewUrl) {
+        previewUrl = toPreviewUrl(publishedPath, slug, id);
+      }
       publishedAt = publishedPath.replace(/\//g, '-');
     }
 
@@ -233,13 +274,19 @@ const resolveSkinAssetsFromSkinPage = async (skinUrl: string) => {
     const mirrorUrl = toJinaMirrorUrl(skinUrl);
     const content = await fetchTextWithFallback(mirrorUrl);
     const directDownload = parseUploadsSkinUrl(content);
-    if (!directDownload) {
+    const directPreview = parsePreviewSkinUrl(content);
+    const endpointDownload = parseDownloadEndpoint(content);
+    const pageIdMatch = /\/skin\/(\d+)\//i.exec(skinUrl);
+    const fallbackEndpoint = pageIdMatch?.[1] ? toDownloadEndpoint(pageIdMatch[1]) : '';
+    const stableDownload = endpointDownload || fallbackEndpoint;
+
+    if (!directDownload && !stableDownload) {
       return null;
     }
     return {
-      downloadUrl: directDownload,
-      previewUrl: directDownload.replace('/uploads/skins/', '/uploads/preview-skins/'),
-      publishedAt: parseAssetPathFromDownloadUrl(directDownload) ?? 'N/A',
+      downloadUrl: stableDownload || directDownload,
+      previewUrl: directPreview || (directDownload ? directDownload.replace('/uploads/skins/', '/uploads/preview-skins/') : ''),
+      publishedAt: directDownload ? parseAssetPathFromDownloadUrl(directDownload) ?? 'N/A' : 'N/A',
     };
   } catch {
     return null;
@@ -258,8 +305,8 @@ const hydrateMissingAssets = async (items: ParsedSkinResult[]) => {
       }
       return {
         ...item,
-        downloadUrl: resolved.downloadUrl,
-        previewUrl: resolved.previewUrl,
+        downloadUrl: resolved.downloadUrl || item.downloadUrl,
+        previewUrl: resolved.previewUrl || item.previewUrl,
         publishedAt: resolved.publishedAt,
       };
     })
@@ -292,14 +339,14 @@ export async function searchMinecraftSkins(query: string, page = 1): Promise<Ski
 
   const results: SkinResult[] = hydrated
     .map((entry) => ({
-      downloadUrl: entry.downloadUrl,
+      downloadUrl: normalizeSkinsUrl(entry.downloadUrl) || toDownloadEndpoint(entry.id),
       id: entry.id,
-      previewUrl: entry.previewUrl,
+      previewUrl: normalizeSkinsUrl(entry.previewUrl),
       publishedAt: entry.publishedAt,
-      skinUrl: decodeUrl(entry.skinUrl),
+      skinUrl: normalizeSkinsUrl(entry.skinUrl),
       title: entry.title,
     }))
-    .filter((entry) => Boolean(entry.skinUrl && (entry.previewUrl || entry.downloadUrl)));
+    .filter((entry) => Boolean(entry.skinUrl && entry.downloadUrl));
 
   return {
     hasNextPage,

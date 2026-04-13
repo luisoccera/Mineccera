@@ -27,6 +27,26 @@ const toErrorMessage = (error: unknown) => {
   return 'No se pudo cargar MinecraftSkins en este momento. Intenta de nuevo.';
 };
 
+const absoluteExternalUrl = (url: string) => {
+  const clean = (url || '').trim();
+  if (!clean) {
+    return '';
+  }
+  if (clean.startsWith('http://')) {
+    return clean.replace(/^http:\/\//i, 'https://');
+  }
+  if (clean.startsWith('https://')) {
+    return clean;
+  }
+  if (clean.startsWith('//')) {
+    return `https:${clean}`;
+  }
+  if (clean.startsWith('/')) {
+    return `https://www.minecraftskins.com${clean}`;
+  }
+  return `https://${clean}`;
+};
+
 export function SkinScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -180,6 +200,8 @@ export function SkinScreen() {
           <View style={styles.resultGrid}>
             {results.map((item) => {
               const broken = brokenImages[item.id] === true;
+              const sourceUrl = absoluteExternalUrl(item.skinUrl);
+              const downloadUrl = absoluteExternalUrl(item.downloadUrl);
               return (
                 <View key={item.id} style={[styles.resultCell, { width: cardWidth }]}>
                   <View style={styles.resultCard}>
@@ -207,13 +229,13 @@ export function SkinScreen() {
                       <Text style={styles.cardMeta}>Publicacion: {item.publishedAt || 'N/A'}</Text>
 
                       <View style={[styles.linkRow, compact && styles.linkRowCompact]}>
-                        <Pressable onPress={() => Linking.openURL(item.skinUrl)} style={[styles.linkBtn, styles.linkSource]}>
+                        <Pressable onPress={() => sourceUrl && Linking.openURL(sourceUrl)} style={[styles.linkBtn, styles.linkSource]}>
                           <Text style={styles.linkBtnTextSource}>Ver fuente</Text>
                         </Pressable>
                         <Pressable
-                          disabled={!item.downloadUrl}
-                          onPress={() => item.downloadUrl && Linking.openURL(item.downloadUrl)}
-                          style={[styles.linkBtn, styles.linkDownload, !item.downloadUrl && styles.buttonDisabled]}
+                          disabled={!downloadUrl}
+                          onPress={() => downloadUrl && Linking.openURL(downloadUrl)}
+                          style={[styles.linkBtn, styles.linkDownload, !downloadUrl && styles.buttonDisabled]}
                         >
                           <Text style={styles.linkBtnText}>Descargar PNG</Text>
                         </Pressable>
