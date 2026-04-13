@@ -9,6 +9,7 @@ import {
   generateStructurePoints,
   getBiomeAtPoint,
   getTerrainAtPoint,
+  parseSeedValue,
   structureCategories,
   structureDistance,
   structureLayers,
@@ -80,6 +81,51 @@ const normalizeSearch = (value: string) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+
+const shiftHexColor = (hex: string, amount: number) => {
+  const safe = hex.replace('#', '');
+  if (safe.length !== 6) {
+    return hex;
+  }
+
+  const r = Number.parseInt(safe.slice(0, 2), 16);
+  const g = Number.parseInt(safe.slice(2, 4), 16);
+  const b = Number.parseInt(safe.slice(4, 6), 16);
+
+  if ([r, g, b].some((channel) => Number.isNaN(channel))) {
+    return hex;
+  }
+
+  const tone = clamp01(Math.abs(amount));
+  const blend = (channel: number) => {
+    if (amount >= 0) {
+      return Math.round(channel + (255 - channel) * tone);
+    }
+    return Math.round(channel * (1 - tone));
+  };
+
+  const next = [blend(r), blend(g), blend(b)]
+    .map((channel) => channel.toString(16).padStart(2, '0'))
+    .join('');
+
+  return `#${next}`;
+};
+
+const cellNoise = (row: number, col: number, salt: number) => {
+  let hash = salt ^ Math.imul((row + 17) * 374761393, (col + 29) * 668265263);
+  hash = (hash ^ (hash >>> 13)) >>> 0;
+  hash = Math.imul(hash, 1274126177) >>> 0;
+  return (hash >>> 0) / 0xffffffff;
+};
+
+const isWaterLikeTerrain = (terrainId: string) =>
+  terrainId === 'water' ||
+  terrainId === 'river' ||
+  terrainId === 'deep-ocean' ||
+  terrainId === 'warm-ocean' ||
+  terrainId === 'lava-sea';
+
 type CategoryFilter = 'all' | StructureCategory;
 
 interface AppliedSearch {
@@ -126,6 +172,20 @@ interface CursorState {
   worldZ: number;
 }
 
+interface StyledMapCell {
+  color: string;
+  col: number;
+  row: number;
+}
+
+interface BoundaryLine {
+  height: number;
+  left: number;
+  top: number;
+  water: boolean;
+  width: number;
+}
+
 export function SeedMapScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -142,9 +202,10 @@ export function SeedMapScreen() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [showGrid, setShowGrid] = useState(true);
-  const [showBiomes, setShowBiomes] = useState(true);
+  const [showBiomes, setShowBiomes] = useState(false);
   const [showTerrain, setShowTerrain] = useState(true);
-  const [showLabels, setShowLabels] = useState(true);
+  const [showLabels, setShowLabels] = useState(false);
+  const [showRelief, setShowRelief] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
   const [cursor, setCursor] = useState<CursorState>({
@@ -210,7 +271,7 @@ export function SeedMapScreen() {
     const sidePadding = compact ? 36 : 72;
     return Math.max(260, Math.min(width - sidePadding, compact ? 390 : 680));
   }, [compact, width]);
-  const biomeCellsPerSide = compact ? 18 : 24;
+  const biomeCellsPerSide = compact ? 36 : 56;
   const biomeCellSize = mapSize / biomeCellsPerSide;
 
   const effectiveRadius = Math.max(400, Math.round(applied.radius / zoom));
@@ -275,6 +336,97 @@ export function SeedMapScreen() {
     [applied.centerX, applied.centerZ, applied.seed, biomeCellsPerSide, dimension, edition, effectiveRadius, hasSearched]
   );
 
+  const visualSeed = useMemo(() => parseSeedValue(applied.seed), [applied.seed]);
+
+  const terrainRenderCells = useMemo<StyledMapCell[]>(() => {
+    if (!terrainCells.length) {
+      return [];
+    }
+
+    return terrainCells.map((cell) => {
+      const noise = cellNoise(cell.row, cell.col, visualSeed);
+      let tone = (noise - 0.5) * 0.24;
+
+      if (cell.terrainId === 'mountain' || cell.terrainId === 'high-islands' || cell.terrainId === 'basalt-ridges') {
+        tone += 0.09;
+      }
+      if (isWaterLikeTerrain(cell.terrainId)) {
+        tone -= 0.08;
+      }
+      if (cell.terrainId === 'flat-plains' || cell.terrainId === 'dry-plains') {
+        tone += 0.02;
+      }
+
+      return {
+        col: cell.col,
+        color: showRelief ? shiftHexColor(cell.terrainColor, tone) : cell.terrainColor,
+        row: cell.row,
+      };
+    });
+  }, [showRelief, terrainCells, visualSeed]);
+
+  const biomeRenderCells = useMemo<StyledMapCell[]>(() => {
+    if (!biomeCells.length) {
+      return [];
+    }
+
+    return biomeCells.map((cell) => {
+      const noise = cellNoise(cell.row, cell.col, visualSeed ^ 0x55aa11);
+      const tone = (noise - 0.5) * 0.12;
+
+      return {
+        col: cell.col,
+        color: showRelief ? shiftHexColor(cell.biomeColor, tone) : cell.biomeColor,
+        row: cell.row,
+      };
+    });
+  }, [biomeCells, showRelief, visualSeed]);
+
+  const terrainBoundaries = useMemo<BoundaryLine[]>(() => {
+    if (!terrainCells.length) {
+      return [];
+    }
+
+    const lines: BoundaryLine[] = [];
+
+    for (let row = 0; row < biomeCellsPerSide; row += 1) {
+      for (let col = 0; col < biomeCellsPerSide; col += 1) {
+        const current = terrainCells[row * biomeCellsPerSide + col];
+        if (!current) {
+          continue;
+        }
+
+        if (col < biomeCellsPerSide - 1) {
+          const right = terrainCells[row * biomeCellsPerSide + (col + 1)];
+          if (right && current.terrainId !== right.terrainId) {
+            lines.push({
+              height: biomeCellSize + 0.7,
+              left: (col + 1) * biomeCellSize - 0.5,
+              top: row * biomeCellSize,
+              water: isWaterLikeTerrain(current.terrainId) !== isWaterLikeTerrain(right.terrainId),
+              width: 1,
+            });
+          }
+        }
+
+        if (row < biomeCellsPerSide - 1) {
+          const down = terrainCells[(row + 1) * biomeCellsPerSide + col];
+          if (down && current.terrainId !== down.terrainId) {
+            lines.push({
+              height: 1,
+              left: col * biomeCellSize,
+              top: (row + 1) * biomeCellSize - 0.5,
+              water: isWaterLikeTerrain(current.terrainId) !== isWaterLikeTerrain(down.terrainId),
+              width: biomeCellSize + 0.7,
+            });
+          }
+        }
+      }
+    }
+
+    return lines;
+  }, [biomeCellSize, biomeCellsPerSide, terrainCells]);
+
   const markers = useMemo(() => {
     const half = mapSize / 2;
     return rawPoints
@@ -302,6 +454,14 @@ export function SeedMapScreen() {
       })
       .filter((marker): marker is Marker => marker !== null);
   }, [applied.centerX, applied.centerZ, effectiveRadius, layerById, mapSize, rawPoints]);
+
+  const markerLabelIds = useMemo(() => {
+    const top = [...markers]
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, compact ? 16 : 26)
+      .map((marker) => marker.id);
+    return new Set(top);
+  }, [compact, markers]);
 
   const nearest = useMemo(
     () =>
@@ -758,6 +918,11 @@ export function SeedMapScreen() {
         ) : (
           <>
             <View style={styles.chips}>
+              <Pressable onPress={() => setShowRelief((v) => !v)} style={[styles.chip, showRelief && styles.chipActive]}>
+                <Text style={[styles.chipText, showRelief && styles.chipTextActive]}>
+                  {showRelief ? 'Relieve ON' : 'Relieve OFF'}
+                </Text>
+              </Pressable>
               <Pressable onPress={() => setShowTerrain((v) => !v)} style={[styles.chip, showTerrain && styles.chipActive]}>
                 <Text style={[styles.chipText, showTerrain && styles.chipTextActive]}>
                   {showTerrain ? 'Terreno ON' : 'Terreno OFF'}
@@ -792,7 +957,7 @@ export function SeedMapScreen() {
 
               <View style={styles.mapRowWrap}>
                 <View style={[styles.leftRuler, { height: mapSize }]}>
-                  <Text style={styles.axisTitleLeft}>Y / Z</Text>
+                  <Text style={styles.axisTitleLeft}>Z</Text>
                   {rulerTicks.map((line, index) => (
                     <Text
                       key={`z-tick-${index}`}
@@ -821,13 +986,13 @@ export function SeedMapScreen() {
                   style={[styles.mapCanvas, { height: mapSize, width: mapSize }]}
                 >
                   {showTerrain
-                    ? terrainCells.map((cell) => (
+                    ? terrainRenderCells.map((cell) => (
                         <View
                           key={`terrain-${cell.row}-${cell.col}`}
                           style={[
                             styles.terrainCell,
                             {
-                              backgroundColor: cell.terrainColor,
+                              backgroundColor: cell.color,
                               height: biomeCellSize + 0.6,
                               left: cell.col * biomeCellSize,
                               top: cell.row * biomeCellSize,
@@ -839,17 +1004,36 @@ export function SeedMapScreen() {
                     : null}
 
                   {showBiomes
-                    ? biomeCells.map((cell) => (
+                    ? biomeRenderCells.map((cell) => (
                         <View
                           key={`biome-${cell.row}-${cell.col}`}
                           style={[
                             styles.biomeCell,
                             {
-                              backgroundColor: cell.biomeColor,
+                              backgroundColor: cell.color,
                               height: biomeCellSize + 0.6,
                               left: cell.col * biomeCellSize,
+                              opacity: showTerrain ? 0.33 : 0.82,
                               top: cell.row * biomeCellSize,
                               width: biomeCellSize + 0.6,
+                            },
+                          ]}
+                        />
+                      ))
+                    : null}
+
+                  {showTerrain
+                    ? terrainBoundaries.map((line, index) => (
+                        <View
+                          key={`tb-${index}`}
+                          style={[
+                            styles.terrainBoundary,
+                            line.water && styles.terrainBoundaryWater,
+                            {
+                              height: line.height,
+                              left: line.left,
+                              top: line.top,
+                              width: line.width,
                             },
                           ]}
                         />
@@ -870,7 +1054,7 @@ export function SeedMapScreen() {
                       <Pressable onPress={() => setSelectedMarkerId(marker.id)} style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}>
                         <View style={[styles.marker, selectedMarkerId === marker.id && styles.markerSelected, { backgroundColor: marker.color }]} />
                       </Pressable>
-                      {showLabels ? (
+                      {showLabels && markerLabelIds.has(marker.id) ? (
                         <Text style={[styles.markerLabel, { left: marker.left + 8, top: marker.top - 6 }]}>{shortLabel(marker.layer.name)}</Text>
                       ) : null}
                     </View>
@@ -883,14 +1067,14 @@ export function SeedMapScreen() {
 
             <View style={styles.cursorBar}>
               <Text style={styles.cursorText}>
-                Cursor X: {Math.round(cursor.worldX)} | Y/Z: {Math.round(cursor.worldZ)} | Bioma:{' '}
+                Cursor X: {Math.round(cursor.worldX)} | Cursor Z: {Math.round(cursor.worldZ)} | Altura Y: {Math.round(applied.centerY)} | Bioma:{' '}
                 {cursorCellInfo?.biomeName ?? centerBiome?.biomeName ?? 'N/A'} | Terreno:{' '}
                 {cursorCellInfo?.terrainName ?? centerTerrain?.terrainName ?? 'N/A'}
               </Text>
             </View>
 
             <Text style={styles.helperText}>
-              Escala aprox: {scalePerCell} bloques por division | Puntos: {markers.length}
+              Escala aprox: {scalePerCell} bloques por division | Resolucion: {biomeCellsPerSide}x{biomeCellsPerSide} | Puntos: {markers.length}
               {centerBiome ? ` | Bioma centro: ${centerBiome.biomeName}` : ''}
               {centerTerrain ? ` | Terreno centro: ${centerTerrain.terrainName}` : ''}
             </Text>
@@ -1108,20 +1292,26 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   mapCanvas: {
-    backgroundColor: '#102218',
-    borderColor: '#3E5E45',
+    backgroundColor: '#162920',
+    borderColor: '#4D6A56',
     borderRadius: radius.md,
     borderWidth: 1,
     overflow: 'hidden',
     position: 'relative',
   },
   biomeCell: {
-    opacity: 0.72,
     position: 'absolute',
   },
   terrainCell: {
-    opacity: 0.9,
+    opacity: 0.96,
     position: 'absolute',
+  },
+  terrainBoundary: {
+    backgroundColor: 'rgba(40,58,44,0.28)',
+    position: 'absolute',
+  },
+  terrainBoundaryWater: {
+    backgroundColor: 'rgba(204,236,255,0.38)',
   },
   cursorLineHorizontal: {
     backgroundColor: 'rgba(255,255,255,0.55)',
@@ -1219,7 +1409,16 @@ const styles = StyleSheet.create({
   markerTouch: { width: 20, height: 20, position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   marker: { borderColor: '#FFFFFF', borderWidth: 1, borderRadius: 6, width: 12, height: 12 },
   markerSelected: { borderColor: '#FFE38A', borderWidth: 2, width: 14, height: 14 },
-  markerLabel: { color: '#E9F8EE', fontSize: 9, fontWeight: '700', maxWidth: 90, position: 'absolute' },
+  markerLabel: {
+    color: '#F1FFF4',
+    fontSize: 9,
+    fontWeight: '700',
+    maxWidth: 90,
+    position: 'absolute',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { height: 1, width: 1 },
+    textShadowRadius: 2,
+  },
   selectedCard: {
     backgroundColor: '#F8F4EA',
     borderColor: '#C2AF87',
