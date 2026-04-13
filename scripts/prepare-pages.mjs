@@ -5,6 +5,7 @@ const distDir = path.resolve(process.cwd(), 'dist');
 const indexPath = path.join(distDir, 'index.html');
 const notFoundPath = path.join(distDir, '404.html');
 const cnamePath = path.join(distDir, 'CNAME');
+const noJekyllPath = path.join(distDir, '.nojekyll');
 const customDomain = (process.env.PAGES_CUSTOM_DOMAIN || '').trim();
 
 if (!existsSync(indexPath)) {
@@ -25,4 +26,6 @@ if (customDomain) {
   console.log(`CNAME generado: ${customDomain}`);
 }
 
-console.log('GitHub Pages listo: rutas relativas + 404.html generado.');
+writeFileSync(noJekyllPath, '', 'utf8');
+
+console.log('GitHub Pages listo: rutas relativas + 404.html + .nojekyll generados.');
