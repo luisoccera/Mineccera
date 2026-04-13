@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
@@ -68,14 +68,6 @@ const parseCoordinate = (value: string) => {
   return Number.isFinite(parsed) ? Number(parsed.toFixed(3)) : 0;
 };
 
-const parseRadius = (value: string) => {
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return Math.max(800, Math.min(16000, Math.round(parsed)));
-  }
-  return 2500;
-};
-
 const normalizeSearch = (value: string) =>
   value
     .toLowerCase()
@@ -128,6 +120,8 @@ const isWaterLikeTerrain = (terrainId: string) =>
   terrainId === 'lava-sea';
 
 const PAN_DRAG_THRESHOLD_PX = 8;
+const PAN_UPDATE_MIN_BLOCKS = 12;
+const DEFAULT_BASE_RADIUS = 2500;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 8;
 const ZOOM_STEP = 0.25;
@@ -208,11 +202,6 @@ interface PanAnchor {
   pointerY: number;
 }
 
-interface PanOffset {
-  dx: number;
-  dy: number;
-}
-
 export function SeedMapScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -222,7 +211,6 @@ export function SeedMapScreen() {
   const [x, setX] = useState('0');
   const [y, setY] = useState('64');
   const [z, setZ] = useState('0');
-  const [radiusInput, setRadiusInput] = useState('2500');
   const [edition, setEdition] = useState<SeedEdition>('java_1_21');
   const [dimension, setDimension] = useState<SeedDimension>('overworld');
   const [zoom, setZoom] = useState(1);
@@ -231,7 +219,6 @@ export function SeedMapScreen() {
   const [openAtSpawn, setOpenAtSpawn] = useState(true);
   const [panEnabled, setPanEnabled] = useState(true);
   const [isPanning, setIsPanning] = useState(false);
-  const [panOffset, setPanOffset] = useState<PanOffset>({ dx: 0, dy: 0 });
   const [showGrid, setShowGrid] = useState(true);
   const [showBiomes, setShowBiomes] = useState(false);
   const [showTerrain, setShowTerrain] = useState(true);
@@ -251,12 +238,12 @@ export function SeedMapScreen() {
     centerX: 0,
     centerY: 64,
     centerZ: 0,
-    radius: 2500,
+    radius: DEFAULT_BASE_RADIUS,
     seed: '0',
   });
   const panAnchorRef = useRef<PanAnchor | null>(null);
   const panMovedRef = useRef(false);
-  const panOffsetRef = useRef<PanOffset>({ dx: 0, dy: 0 });
+  const panCenterRef = useRef({ centerX: 0, centerZ: 0 });
   const centerRef = useRef({ centerX: 0, centerZ: 0 });
 
   const [activeLayers, setActiveLayers] = useState<string[]>(() =>
@@ -333,7 +320,7 @@ export function SeedMapScreen() {
     const sidePadding = compact ? 36 : 72;
     return Math.max(260, Math.min(width - sidePadding, compact ? 390 : 680));
   }, [compact, width]);
-  const biomeCellsPerSide = compact ? 36 : 56;
+  const biomeCellsPerSide = compact ? (isPanning ? 28 : 36) : isPanning ? 42 : 56;
   const biomeCellSize = mapSize / biomeCellsPerSide;
 
   const effectiveRadius = Math.max(80, Math.round(applied.radius / zoom));
@@ -750,8 +737,7 @@ export function SeedMapScreen() {
       pointerY,
     };
     panMovedRef.current = false;
-    panOffsetRef.current = { dx: 0, dy: 0 };
-    setPanOffset({ dx: 0, dy: 0 });
+    panCenterRef.current = { centerX: centerRef.current.centerX, centerZ: centerRef.current.centerZ };
     setIsPanning(false);
     updateCursor(pointerX, pointerY, true);
     return true;
@@ -778,8 +764,22 @@ export function SeedMapScreen() {
       setCursor((prev) => ({ ...prev, active: false }));
     }
 
-    panOffsetRef.current = { dx: deltaX, dy: deltaY };
-    setPanOffset({ dx: deltaX, dy: deltaY });
+    const nextCenterX = Number((anchor.centerX - deltaX * blocksPerPixel).toFixed(2));
+    const nextCenterZ = Number((anchor.centerZ - deltaY * blocksPerPixel).toFixed(2));
+
+    if (
+      Math.abs(nextCenterX - panCenterRef.current.centerX) < PAN_UPDATE_MIN_BLOCKS &&
+      Math.abs(nextCenterZ - panCenterRef.current.centerZ) < PAN_UPDATE_MIN_BLOCKS
+    ) {
+      return;
+    }
+
+    panCenterRef.current = { centerX: nextCenterX, centerZ: nextCenterZ };
+    setApplied((prev) => ({
+      ...prev,
+      centerX: nextCenterX,
+      centerZ: nextCenterZ,
+    }));
   };
 
   const endPan = (pointerX?: number, pointerY?: number) => {
@@ -791,15 +791,15 @@ export function SeedMapScreen() {
     panAnchorRef.current = null;
     panMovedRef.current = false;
     setIsPanning(false);
-    setPanOffset({ dx: 0, dy: 0 });
     if (moved) {
-      const deltaX =
-        Number.isFinite(pointerX) && pointerX !== undefined ? pointerX - anchor.pointerX : panOffsetRef.current.dx;
-      const deltaY =
-        Number.isFinite(pointerY) && pointerY !== undefined ? pointerY - anchor.pointerY : panOffsetRef.current.dy;
-      const nextCenterX = Number((anchor.centerX - deltaX * blocksPerPixel).toFixed(2));
-      const nextCenterZ = Number((anchor.centerZ - deltaY * blocksPerPixel).toFixed(2));
-
+      const nextCenterX =
+        Number.isFinite(pointerX) && pointerX !== undefined
+          ? Number((anchor.centerX - (pointerX - anchor.pointerX) * blocksPerPixel).toFixed(2))
+          : centerRef.current.centerX;
+      const nextCenterZ =
+        Number.isFinite(pointerY) && pointerY !== undefined
+          ? Number((anchor.centerZ - (pointerY - anchor.pointerY) * blocksPerPixel).toFixed(2))
+          : centerRef.current.centerZ;
       setApplied((prev) => ({
         ...prev,
         centerX: nextCenterX,
@@ -807,7 +807,6 @@ export function SeedMapScreen() {
       }));
       setX(Math.round(nextCenterX).toString());
       setZ(Math.round(nextCenterZ).toString());
-      panOffsetRef.current = { dx: 0, dy: 0 };
       setCursor({
         active: false,
         canvasX: mapSize / 2,
@@ -817,7 +816,6 @@ export function SeedMapScreen() {
       });
       return;
     }
-    panOffsetRef.current = { dx: 0, dy: 0 };
     updateCursor(pointerX ?? mapSize / 2, pointerY ?? mapSize / 2, true);
   };
 
@@ -887,9 +885,58 @@ export function SeedMapScreen() {
 
   const mapTooltip = markerTooltip ?? cursorTooltip;
 
-  const zoomOut = () => setZoom((value) => clampZoom(value - ZOOM_STEP));
-  const zoomIn = () => setZoom((value) => clampZoom(value + ZOOM_STEP));
-  const resetZoom = () => setZoom(1);
+  const applyZoomAt = (nextZoom: number, canvasX = mapSize / 2, canvasY = mapSize / 2) => {
+    const safeZoom = clampZoom(nextZoom);
+    if (safeZoom === zoom) {
+      return;
+    }
+    if (!hasSearched) {
+      setZoom(safeZoom);
+      return;
+    }
+
+    const mapped = pointerToWorld(canvasX, canvasY);
+    const ratioX = (mapped.clampedX / mapSize) * 2 - 1;
+    const ratioZ = (mapped.clampedY / mapSize) * 2 - 1;
+    const nextRadius = Math.max(80, Math.round(applied.radius / safeZoom));
+    const nextCenterX = Number((mapped.worldX - ratioX * nextRadius).toFixed(2));
+    const nextCenterZ = Number((mapped.worldZ - ratioZ * nextRadius).toFixed(2));
+
+    setZoom(safeZoom);
+    setApplied((prev) => ({
+      ...prev,
+      centerX: nextCenterX,
+      centerZ: nextCenterZ,
+    }));
+    setX(Math.round(nextCenterX).toString());
+    setZ(Math.round(nextCenterZ).toString());
+    setCursor({
+      active: true,
+      canvasX: mapped.clampedX,
+      canvasY: mapped.clampedY,
+      worldX: mapped.worldX,
+      worldZ: mapped.worldZ,
+    });
+  };
+
+  const zoomOut = () => applyZoomAt(zoom - ZOOM_STEP);
+  const zoomIn = () => applyZoomAt(zoom + ZOOM_STEP);
+  const resetZoom = () => applyZoomAt(1);
+
+  const handleMapWheel = (event: any) => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+    const deltaY = Number(event?.nativeEvent?.deltaY ?? 0);
+    if (!Number.isFinite(deltaY) || deltaY === 0) {
+      return;
+    }
+    event.preventDefault?.();
+    const zoomDelta = deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+    const offsetX = Number(event?.nativeEvent?.offsetX ?? mapSize / 2);
+    const offsetY = Number(event?.nativeEvent?.offsetY ?? mapSize / 2);
+    applyZoomAt(zoom + zoomDelta, offsetX, offsetY);
+  };
 
   const activateAll = () => setActiveLayers(availableLayers.map((layer) => layer.id));
   const deactivateAll = () => setActiveLayers([]);
@@ -928,7 +975,7 @@ export function SeedMapScreen() {
       centerX: nextCenterX,
       centerY: nextCenterY,
       centerZ: nextCenterZ,
-      radius: parseRadius(radiusInput),
+      radius: DEFAULT_BASE_RADIUS,
       seed: seed.trim() || '0',
     });
     setHasSearched(true);
@@ -957,6 +1004,36 @@ export function SeedMapScreen() {
       worldX: selectedMarker.x,
       worldZ: selectedMarker.z,
     });
+  };
+
+  const markerIcon = (layer: StructureLayer) => {
+    if (layer.id === 'village') return '🏘';
+    if (layer.id === 'mansion') return '🏰';
+    if (layer.id === 'monument') return '🌊';
+    if (layer.id === 'outpost') return '🛡';
+    if (layer.id === 'shipwreck') return '⛵';
+    if (layer.id === 'ruined-portal') return '🌀';
+    if (layer.id === 'trial-chamber') return '⚔';
+    if (layer.id === 'ancient-city') return '🏛';
+    if (layer.id === 'stronghold') return '🧿';
+    if (layer.id === 'mineshaft') return '⛏';
+    if (layer.id === 'desert-pyramid') return '🔺';
+    if (layer.id === 'jungle-temple') return '🌴';
+    if (layer.id === 'witch-hut') return '🧪';
+    if (layer.id === 'igloo') return '❄';
+    if (layer.id === 'ocean-ruin') return '🐚';
+    if (layer.id === 'trail-ruin') return '🧱';
+    if (layer.id === 'bastion-remnant') return '🔥';
+    if (layer.id === 'fortress') return '🏯';
+    if (layer.id === 'nether-fossil') return '🦴';
+    if (layer.id === 'end-city') return '⭐';
+    if (layer.id === 'end-gateway') return '⭕';
+    if (layer.id === 'end-ship') return '🚀';
+    if (layer.category === 'progreso') return '🚩';
+    if (layer.category === 'loot') return '💎';
+    if (layer.category === 'recursos') return '📦';
+    if (layer.category === 'seguridad') return '🏠';
+    return '📍';
   };
 
   const shortLabel = (name: string) => (name.length > 14 ? `${name.slice(0, 12)}..` : name);
@@ -1002,17 +1079,7 @@ export function SeedMapScreen() {
         </View>
 
         <View style={[styles.row, compact && styles.rowCompact]}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Radio (bloques)</Text>
-            <TextInput
-              keyboardType="number-pad"
-              onChangeText={(value) => setRadiusInput(value.replace(/[^\d]/g, ''))}
-              placeholder="2500"
-              style={[styles.input, compact && styles.inputCompact]}
-              value={radiusInput}
-            />
-          </View>
-          <View style={styles.inputGroup}>
+          <View style={[styles.inputGroup, styles.zoomGroupWide]}>
             <Text style={styles.label}>Zoom</Text>
             <View style={styles.zoomRow}>
               <Pressable onPress={zoomOut} style={styles.zoomBtn}>
@@ -1204,7 +1271,7 @@ export function SeedMapScreen() {
             </View>
             <Text style={styles.helperText}>
               {panEnabled
-                ? 'Arrastra el mapa con el dedo/mouse para moverlo libremente.'
+                ? 'Arrastra el mapa con el dedo/mouse para moverlo libremente. En web puedes usar la rueda para zoom.'
                 : 'Activa "Mover mapa ON" para desplazarte como en Google Maps.'}
             </Text>
 
@@ -1241,6 +1308,7 @@ export function SeedMapScreen() {
                 </View>
 
                 <View
+                  {...(Platform.OS === 'web' ? ({ onWheel: handleMapWheel } as any) : {})}
                   onMoveShouldSetResponder={() => true}
                   onPointerMove={(event) => {
                     if (panEnabled && panAnchorRef.current) {
@@ -1286,93 +1354,85 @@ export function SeedMapScreen() {
                   onStartShouldSetResponder={() => true}
                   style={[styles.mapCanvas, isPanning && styles.mapCanvasPanning, { height: mapSize, width: mapSize }]}
                 >
-                  <View
-                    pointerEvents="box-none"
-                    style={[
-                      styles.mapPanLayer,
-                      isPanning && {
-                        transform: [{ translateX: panOffset.dx }, { translateY: panOffset.dy }],
-                      },
-                    ]}
-                  >
-                    {showTerrain
-                      ? terrainRenderCells.map((cell) => (
-                          <View
-                            key={`terrain-${cell.row}-${cell.col}`}
-                            style={[
-                              styles.terrainCell,
-                              {
-                                backgroundColor: cell.color,
-                                height: biomeCellSize + 0.6,
-                                left: cell.col * biomeCellSize,
-                                top: cell.row * biomeCellSize,
-                                width: biomeCellSize + 0.6,
-                              },
-                            ]}
-                          />
-                        ))
-                      : null}
+                  {showTerrain
+                    ? terrainRenderCells.map((cell) => (
+                        <View
+                          key={`terrain-${cell.row}-${cell.col}`}
+                          style={[
+                            styles.terrainCell,
+                            {
+                              backgroundColor: cell.color,
+                              height: biomeCellSize + 0.6,
+                              left: cell.col * biomeCellSize,
+                              top: cell.row * biomeCellSize,
+                              width: biomeCellSize + 0.6,
+                            },
+                          ]}
+                        />
+                      ))
+                    : null}
 
-                    {showBiomes
-                      ? biomeRenderCells.map((cell) => (
-                          <View
-                            key={`biome-${cell.row}-${cell.col}`}
-                            style={[
-                              styles.biomeCell,
-                              {
-                                backgroundColor: cell.color,
-                                height: biomeCellSize + 0.6,
-                                left: cell.col * biomeCellSize,
-                                opacity: showTerrain ? 0.33 : 0.82,
-                                top: cell.row * biomeCellSize,
-                                width: biomeCellSize + 0.6,
-                              },
-                            ]}
-                          />
-                        ))
-                      : null}
+                  {showBiomes
+                    ? biomeRenderCells.map((cell) => (
+                        <View
+                          key={`biome-${cell.row}-${cell.col}`}
+                          style={[
+                            styles.biomeCell,
+                            {
+                              backgroundColor: cell.color,
+                              height: biomeCellSize + 0.6,
+                              left: cell.col * biomeCellSize,
+                              opacity: showTerrain ? 0.33 : 0.82,
+                              top: cell.row * biomeCellSize,
+                              width: biomeCellSize + 0.6,
+                            },
+                          ]}
+                        />
+                      ))
+                    : null}
 
-                    {showTerrain
-                      ? terrainBoundaries.map((line, index) => (
-                          <View
-                            key={`tb-${index}`}
-                            style={[
-                              styles.terrainBoundary,
-                              line.water && styles.terrainBoundaryWater,
-                              {
-                                height: line.height,
-                                left: line.left,
-                                top: line.top,
-                                width: line.width,
-                              },
-                            ]}
-                          />
-                        ))
-                      : null}
+                  {showTerrain
+                    ? terrainBoundaries.map((line, index) => (
+                        <View
+                          key={`tb-${index}`}
+                          style={[
+                            styles.terrainBoundary,
+                            line.water && styles.terrainBoundaryWater,
+                            {
+                              height: line.height,
+                              left: line.left,
+                              top: line.top,
+                              width: line.width,
+                            },
+                          ]}
+                        />
+                      ))
+                    : null}
 
-                    {showGrid ? gridLines.map((line, i) => <View key={`h-${i}`} style={[styles.gridH, { top: line }]} />) : null}
-                    {showGrid ? gridLines.map((line, i) => <View key={`v-${i}`} style={[styles.gridV, { left: line }]} />) : null}
+                  {showGrid ? gridLines.map((line, i) => <View key={`h-${i}`} style={[styles.gridH, { top: line }]} />) : null}
+                  {showGrid ? gridLines.map((line, i) => <View key={`v-${i}`} style={[styles.gridV, { left: line }]} />) : null}
 
-                    {markers.map((marker) => (
-                      <View key={marker.id}>
-                        <Pressable
-                          onHoverIn={() => setHoveredMarkerId(marker.id)}
-                          onHoverOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
-                          onPress={() => {
-                            setSelectedMarkerId(marker.id);
-                            setHoveredMarkerId(marker.id);
-                          }}
-                          onPressOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
-                          style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}
-                        >
-                          <View style={[styles.marker, selectedMarkerId === marker.id && styles.markerSelected, { backgroundColor: marker.color }]} />
-                        </Pressable>
-                        {showLabels && markerLabelIds.has(marker.id) ? (
-                          <Text style={[styles.markerLabel, { left: marker.left + 8, top: marker.top - 6 }]}>{shortLabel(marker.layer.name)}</Text>
-                        ) : null}
-                      </View>
-                    ))}
-                  </View>
+                  {markers.map((marker) => (
+                    <View key={marker.id}>
+                      <Pressable
+                        onHoverIn={() => setHoveredMarkerId(marker.id)}
+                        onHoverOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
+                        onPress={() => {
+                          setSelectedMarkerId(marker.id);
+                          setHoveredMarkerId(marker.id);
+                        }}
+                        onPressOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
+                        style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}
+                      >
+                        <View style={[styles.marker, selectedMarkerId === marker.id && styles.markerSelected, { backgroundColor: marker.color }]}>
+                          <Text style={styles.markerIcon}>{markerIcon(marker.layer)}</Text>
+                        </View>
+                      </Pressable>
+                      {showLabels && markerLabelIds.has(marker.id) ? (
+                        <Text style={[styles.markerLabel, { left: marker.left + 10, top: marker.top - 8 }]}>{shortLabel(marker.layer.name)}</Text>
+                      ) : null}
+                    </View>
+                  ))}
 
                   <View style={[styles.axisH, { top: mapSize / 2 }]} />
                   <View style={[styles.axisV, { left: mapSize / 2 }]} />
@@ -1500,6 +1560,7 @@ const styles = StyleSheet.create({
   rowCompact: { flexDirection: 'column' },
   label: { color: palette.text, fontFamily: font.display, fontSize: 12, marginTop: spacing.sm, marginBottom: spacing.xs },
   inputGroup: { flex: 1, gap: spacing.xs },
+  zoomGroupWide: { flex: 1.35 },
   input: {
     backgroundColor: '#F9FAFB',
     borderColor: palette.border,
@@ -1631,13 +1692,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  mapPanLayer: {
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
   mapCanvasPanning: {
     borderColor: '#E4C27B',
     borderWidth: 2,
@@ -1749,9 +1803,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 14,
   },
-  markerTouch: { width: 20, height: 20, position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  marker: { borderColor: '#FFFFFF', borderWidth: 1, borderRadius: 6, width: 12, height: 12 },
-  markerSelected: { borderColor: '#FFE38A', borderWidth: 2, width: 14, height: 14 },
+  markerTouch: { width: 24, height: 24, position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  marker: {
+    alignItems: 'center',
+    borderColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 16,
+    justifyContent: 'center',
+    width: 16,
+  },
+  markerSelected: { borderColor: '#FFE38A', borderWidth: 2, height: 18, width: 18 },
+  markerIcon: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    lineHeight: 10,
+    textAlign: 'center',
+  },
   markerLabel: {
     color: '#F1FFF4',
     fontSize: 9,
