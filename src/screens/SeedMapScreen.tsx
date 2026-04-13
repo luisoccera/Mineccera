@@ -208,6 +208,11 @@ interface PanAnchor {
   pointerY: number;
 }
 
+interface PanOffset {
+  dx: number;
+  dy: number;
+}
+
 export function SeedMapScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -226,6 +231,7 @@ export function SeedMapScreen() {
   const [openAtSpawn, setOpenAtSpawn] = useState(true);
   const [panEnabled, setPanEnabled] = useState(true);
   const [isPanning, setIsPanning] = useState(false);
+  const [panOffset, setPanOffset] = useState<PanOffset>({ dx: 0, dy: 0 });
   const [showGrid, setShowGrid] = useState(true);
   const [showBiomes, setShowBiomes] = useState(false);
   const [showTerrain, setShowTerrain] = useState(true);
@@ -250,6 +256,7 @@ export function SeedMapScreen() {
   });
   const panAnchorRef = useRef<PanAnchor | null>(null);
   const panMovedRef = useRef(false);
+  const panOffsetRef = useRef<PanOffset>({ dx: 0, dy: 0 });
   const centerRef = useRef({ centerX: 0, centerZ: 0 });
 
   const [activeLayers, setActiveLayers] = useState<string[]>(() =>
@@ -743,6 +750,8 @@ export function SeedMapScreen() {
       pointerY,
     };
     panMovedRef.current = false;
+    panOffsetRef.current = { dx: 0, dy: 0 };
+    setPanOffset({ dx: 0, dy: 0 });
     setIsPanning(false);
     updateCursor(pointerX, pointerY, true);
     return true;
@@ -769,37 +778,47 @@ export function SeedMapScreen() {
       setCursor((prev) => ({ ...prev, active: false }));
     }
 
-    const nextCenterX = Number((anchor.centerX - deltaX * blocksPerPixel).toFixed(2));
-    const nextCenterZ = Number((anchor.centerZ - deltaY * blocksPerPixel).toFixed(2));
-
-    setApplied((prev) => ({
-      ...prev,
-      centerX: nextCenterX,
-      centerZ: nextCenterZ,
-    }));
+    panOffsetRef.current = { dx: deltaX, dy: deltaY };
+    setPanOffset({ dx: deltaX, dy: deltaY });
   };
 
-  const endPan = (pointerX: number, pointerY: number) => {
-    if (!panAnchorRef.current) {
+  const endPan = (pointerX?: number, pointerY?: number) => {
+    const anchor = panAnchorRef.current;
+    if (!anchor) {
       return;
     }
     const moved = panMovedRef.current;
     panAnchorRef.current = null;
     panMovedRef.current = false;
     setIsPanning(false);
+    setPanOffset({ dx: 0, dy: 0 });
     if (moved) {
-      setX(Math.round(centerRef.current.centerX).toString());
-      setZ(Math.round(centerRef.current.centerZ).toString());
+      const deltaX =
+        Number.isFinite(pointerX) && pointerX !== undefined ? pointerX - anchor.pointerX : panOffsetRef.current.dx;
+      const deltaY =
+        Number.isFinite(pointerY) && pointerY !== undefined ? pointerY - anchor.pointerY : panOffsetRef.current.dy;
+      const nextCenterX = Number((anchor.centerX - deltaX * blocksPerPixel).toFixed(2));
+      const nextCenterZ = Number((anchor.centerZ - deltaY * blocksPerPixel).toFixed(2));
+
+      setApplied((prev) => ({
+        ...prev,
+        centerX: nextCenterX,
+        centerZ: nextCenterZ,
+      }));
+      setX(Math.round(nextCenterX).toString());
+      setZ(Math.round(nextCenterZ).toString());
+      panOffsetRef.current = { dx: 0, dy: 0 };
       setCursor({
         active: false,
         canvasX: mapSize / 2,
         canvasY: mapSize / 2,
-        worldX: centerRef.current.centerX,
-        worldZ: centerRef.current.centerZ,
+        worldX: nextCenterX,
+        worldZ: nextCenterZ,
       });
       return;
     }
-    updateCursor(pointerX, pointerY, true);
+    panOffsetRef.current = { dx: 0, dy: 0 };
+    updateCursor(pointerX ?? mapSize / 2, pointerY ?? mapSize / 2, true);
   };
 
   const cursorCellInfo = useMemo(() => {
@@ -837,6 +856,9 @@ export function SeedMapScreen() {
   }, [cursor.active, cursor.canvasX, cursor.canvasY, isPanning, markers]);
 
   const markerTooltip = useMemo<MapTooltip | null>(() => {
+    if (isPanning) {
+      return null;
+    }
     const marker = hoveredMarker ?? selectedMarker ?? markerNearCursor;
     if (!marker) {
       return null;
@@ -848,7 +870,7 @@ export function SeedMapScreen() {
       title: marker.layer.name,
       top: pos.top,
     };
-  }, [applied.centerY, hoveredMarker, markerNearCursor, selectedMarker]);
+  }, [applied.centerY, hoveredMarker, isPanning, markerNearCursor, selectedMarker]);
 
   const cursorTooltip = useMemo<MapTooltip | null>(() => {
     if (!cursor.active || isPanning || hoveredMarker) {
@@ -1256,7 +1278,7 @@ export function SeedMapScreen() {
                   }}
                   onResponderTerminate={() => {
                     if (panEnabled && panAnchorRef.current) {
-                      endPan(mapSize / 2, mapSize / 2);
+                      endPan();
                       return;
                     }
                     setCursor((prev) => ({ ...prev, active: false }));
@@ -1264,89 +1286,99 @@ export function SeedMapScreen() {
                   onStartShouldSetResponder={() => true}
                   style={[styles.mapCanvas, isPanning && styles.mapCanvasPanning, { height: mapSize, width: mapSize }]}
                 >
-                  {showTerrain
-                    ? terrainRenderCells.map((cell) => (
-                        <View
-                          key={`terrain-${cell.row}-${cell.col}`}
-                          style={[
-                            styles.terrainCell,
-                            {
-                              backgroundColor: cell.color,
-                              height: biomeCellSize + 0.6,
-                              left: cell.col * biomeCellSize,
-                              top: cell.row * biomeCellSize,
-                              width: biomeCellSize + 0.6,
-                            },
-                          ]}
-                        />
-                      ))
-                    : null}
+                  <View
+                    pointerEvents="box-none"
+                    style={[
+                      styles.mapPanLayer,
+                      isPanning && {
+                        transform: [{ translateX: panOffset.dx }, { translateY: panOffset.dy }],
+                      },
+                    ]}
+                  >
+                    {showTerrain
+                      ? terrainRenderCells.map((cell) => (
+                          <View
+                            key={`terrain-${cell.row}-${cell.col}`}
+                            style={[
+                              styles.terrainCell,
+                              {
+                                backgroundColor: cell.color,
+                                height: biomeCellSize + 0.6,
+                                left: cell.col * biomeCellSize,
+                                top: cell.row * biomeCellSize,
+                                width: biomeCellSize + 0.6,
+                              },
+                            ]}
+                          />
+                        ))
+                      : null}
 
-                  {showBiomes
-                    ? biomeRenderCells.map((cell) => (
-                        <View
-                          key={`biome-${cell.row}-${cell.col}`}
-                          style={[
-                            styles.biomeCell,
-                            {
-                              backgroundColor: cell.color,
-                              height: biomeCellSize + 0.6,
-                              left: cell.col * biomeCellSize,
-                              opacity: showTerrain ? 0.33 : 0.82,
-                              top: cell.row * biomeCellSize,
-                              width: biomeCellSize + 0.6,
-                            },
-                          ]}
-                        />
-                      ))
-                    : null}
+                    {showBiomes
+                      ? biomeRenderCells.map((cell) => (
+                          <View
+                            key={`biome-${cell.row}-${cell.col}`}
+                            style={[
+                              styles.biomeCell,
+                              {
+                                backgroundColor: cell.color,
+                                height: biomeCellSize + 0.6,
+                                left: cell.col * biomeCellSize,
+                                opacity: showTerrain ? 0.33 : 0.82,
+                                top: cell.row * biomeCellSize,
+                                width: biomeCellSize + 0.6,
+                              },
+                            ]}
+                          />
+                        ))
+                      : null}
 
-                  {showTerrain
-                    ? terrainBoundaries.map((line, index) => (
-                        <View
-                          key={`tb-${index}`}
-                          style={[
-                            styles.terrainBoundary,
-                            line.water && styles.terrainBoundaryWater,
-                            {
-                              height: line.height,
-                              left: line.left,
-                              top: line.top,
-                              width: line.width,
-                            },
-                          ]}
-                        />
-                      ))
-                    : null}
+                    {showTerrain
+                      ? terrainBoundaries.map((line, index) => (
+                          <View
+                            key={`tb-${index}`}
+                            style={[
+                              styles.terrainBoundary,
+                              line.water && styles.terrainBoundaryWater,
+                              {
+                                height: line.height,
+                                left: line.left,
+                                top: line.top,
+                                width: line.width,
+                              },
+                            ]}
+                          />
+                        ))
+                      : null}
 
-                  {showGrid ? gridLines.map((line, i) => <View key={`h-${i}`} style={[styles.gridH, { top: line }]} />) : null}
-                  {showGrid ? gridLines.map((line, i) => <View key={`v-${i}`} style={[styles.gridV, { left: line }]} />) : null}
+                    {showGrid ? gridLines.map((line, i) => <View key={`h-${i}`} style={[styles.gridH, { top: line }]} />) : null}
+                    {showGrid ? gridLines.map((line, i) => <View key={`v-${i}`} style={[styles.gridV, { left: line }]} />) : null}
+
+                    {markers.map((marker) => (
+                      <View key={marker.id}>
+                        <Pressable
+                          onHoverIn={() => setHoveredMarkerId(marker.id)}
+                          onHoverOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
+                          onPress={() => {
+                            setSelectedMarkerId(marker.id);
+                            setHoveredMarkerId(marker.id);
+                          }}
+                          onPressOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
+                          style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}
+                        >
+                          <View style={[styles.marker, selectedMarkerId === marker.id && styles.markerSelected, { backgroundColor: marker.color }]} />
+                        </Pressable>
+                        {showLabels && markerLabelIds.has(marker.id) ? (
+                          <Text style={[styles.markerLabel, { left: marker.left + 8, top: marker.top - 6 }]}>{shortLabel(marker.layer.name)}</Text>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
 
                   <View style={[styles.axisH, { top: mapSize / 2 }]} />
                   <View style={[styles.axisV, { left: mapSize / 2 }]} />
 
                   {cursor.active ? <View style={[styles.cursorLineVertical, { left: cursor.canvasX }]} /> : null}
                   {cursor.active ? <View style={[styles.cursorLineHorizontal, { top: cursor.canvasY }]} /> : null}
-
-                  {markers.map((marker) => (
-                    <View key={marker.id}>
-                      <Pressable
-                        onHoverIn={() => setHoveredMarkerId(marker.id)}
-                        onHoverOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
-                        onPress={() => {
-                          setSelectedMarkerId(marker.id);
-                          setHoveredMarkerId(marker.id);
-                        }}
-                        onPressOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
-                        style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}
-                      >
-                        <View style={[styles.marker, selectedMarkerId === marker.id && styles.markerSelected, { backgroundColor: marker.color }]} />
-                      </Pressable>
-                      {showLabels && markerLabelIds.has(marker.id) ? (
-                        <Text style={[styles.markerLabel, { left: marker.left + 8, top: marker.top - 6 }]}>{shortLabel(marker.layer.name)}</Text>
-                      ) : null}
-                    </View>
-                  ))}
 
                   {mapTooltip ? (
                     <View pointerEvents="none" style={[styles.mapTooltip, { left: mapTooltip.left, top: mapTooltip.top }]}>
@@ -1598,6 +1630,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     position: 'relative',
+  },
+  mapPanLayer: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
   },
   mapCanvasPanning: {
     borderColor: '#E4C27B',
