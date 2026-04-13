@@ -35,9 +35,9 @@ export function MainTabs() {
         tabBarInactiveTintColor: palette.muted,
         tabBarLabelStyle: {
           fontFamily: font.body,
-          fontSize: compact ? 8 : tablet ? 10 : 11,
+          fontSize: compact ? 9 : tablet ? 10 : 11,
           fontWeight: '700',
-          lineHeight: compact ? 10 : 13,
+          lineHeight: compact ? 12 : 13,
           textAlign: 'center',
         },
         tabBarItemStyle: {
@@ -46,8 +46,8 @@ export function MainTabs() {
         },
         tabBarStyle: {
           borderTopColor: palette.border,
-          height: compact ? 64 : tablet ? 68 : 72,
-          paddingBottom: compact ? 7 : 9,
+          height: compact ? 66 : tablet ? 68 : 72,
+          paddingBottom: compact ? 8 : 9,
           paddingTop: compact ? 6 : 8,
         },
         tabBarIcon: ({ color, size }) => {
@@ -58,7 +58,7 @@ export function MainTabs() {
       })}
     >
       <Tab.Screen component={HomeScreen} name="Inicio" options={{ tabBarLabel: 'Inicio' }} />
-      <Tab.Screen component={CalculatorScreen} name="Calculadora" options={{ tabBarLabel: 'Calcula' }} />
+      <Tab.Screen component={CalculatorScreen} name="Calculadora" options={{ tabBarLabel: 'Calc' }} />
       <Tab.Screen component={EnchantingScreen} name="Encantamientos" options={{ tabBarLabel: 'Encanta' }} />
       <Tab.Screen component={BuildIdeasScreen} name="Builds" options={{ tabBarLabel: 'Proyectos' }} />
       <Tab.Screen component={SeedMapScreen} name="Seed" options={{ tabBarLabel: 'Seed' }} />
@@ -70,17 +70,17 @@ export function MainTabs() {
 function getIconName(routeName: keyof TabParamList): keyof typeof MaterialCommunityIcons.glyphMap {
   switch (routeName) {
     case 'Builds':
-      return 'home-search-outline';
+      return 'hammer-wrench';
     case 'Calculadora':
-      return 'calculator-variant-outline';
+      return 'calculator';
     case 'Encantamientos':
-      return 'anvil';
+      return 'book-open-variant';
     case 'Seed':
-      return 'map-search-outline';
+      return 'map-marker-radius';
     case 'Skin':
-      return 'account-box-outline';
+      return 'hanger';
     case 'Inicio':
     default:
-      return 'pickaxe';
+      return 'home-variant';
   }
 }

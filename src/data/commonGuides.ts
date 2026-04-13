@@ -134,11 +134,11 @@ export const commonBuilds: CommonBuild[] = [
 export const enchantingRecipes: EnchantingRecipe[] = [
   {
     id: 'enchanting-table',
-    imageCredit: 'Textura oficial Java 1.21.x (mcasset.cloud)',
-    imageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/enchanting_table_top.png',
+    imageCredit: 'DigMinecraft - receta de crafteo',
+    imageUrl: 'https://www.digminecraft.com/basic_recipes/images/make_enchantment_table.png',
     recipe: '4 obsidiana + 2 diamantes + 1 libro',
     references: [
-      { label: 'Texturas oficiales (mcasset)', url: 'https://mcasset.cloud/' },
+      { label: 'Receta visual (DigMinecraft)', url: 'https://www.digminecraft.com/basic_recipes/make_enchantment_table.php' },
       { label: 'Lifewire: enchantment table', url: 'https://www.lifewire.com/make-enchantment-table-in-minecraft-5220688' },
       { label: 'Pro Game Guides: enchanting table', url: 'https://progameguides.com/minecraft/how-to-make-an-enchanting-table-in-minecraft/' },
       { label: 'Minecraft Wiki: Enchanting table', url: 'https://minecraft.wiki/w/Enchanting_Table' },
@@ -148,11 +148,11 @@ export const enchantingRecipes: EnchantingRecipe[] = [
   },
   {
     id: 'anvil',
-    imageCredit: 'Textura oficial Java 1.21.x (mcasset.cloud)',
-    imageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/anvil_top.png',
+    imageCredit: 'DigMinecraft - receta de crafteo',
+    imageUrl: 'https://www.digminecraft.com/decoration_recipes/images/make_anvil.png',
     recipe: '3 bloques de hierro + 4 lingotes de hierro',
     references: [
-      { label: 'Texturas oficiales (mcasset)', url: 'https://mcasset.cloud/' },
+      { label: 'Receta visual (DigMinecraft)', url: 'https://www.digminecraft.com/decoration_recipes/make_anvil.php' },
       { label: 'Beebom: como hacer yunque', url: 'https://beebom.com/how-make-anvil-minecraft/' },
       { label: 'GameSpot: anvil recipe', url: 'https://www.gamespot.com/articles/how-to-make-an-anvil-in-minecraft/1100-6524993/' },
       { label: 'Minecraft Wiki: Anvil', url: 'https://minecraft.wiki/w/Anvil' },
@@ -162,11 +162,11 @@ export const enchantingRecipes: EnchantingRecipe[] = [
   },
   {
     id: 'bookshelf',
-    imageCredit: 'Textura oficial Java 1.21.x (mcasset.cloud)',
-    imageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/bookshelf.png',
+    imageCredit: 'DigMinecraft - receta de crafteo',
+    imageUrl: 'https://www.digminecraft.com/block_recipes/images/make_bookshelf.png',
     recipe: '6 tablones + 3 libros',
     references: [
-      { label: 'Texturas oficiales (mcasset)', url: 'https://mcasset.cloud/' },
+      { label: 'Receta visual (DigMinecraft)', url: 'https://www.digminecraft.com/block_recipes/make_bookshelf.php' },
       { label: 'GameSpot: bookshelf recipe', url: 'https://www.gamespot.com/articles/how-to-make-a-bookshelf-in-minecraft/1100-6526073/' },
       { label: 'Pro Game Guides: bookshelf', url: 'https://progameguides.com/minecraft/how-to-make-a-bookshelf-in-minecraft/' },
       { label: 'Minecraft Wiki: Bookshelf', url: 'https://minecraft.wiki/w/Bookshelf' },
@@ -176,11 +176,11 @@ export const enchantingRecipes: EnchantingRecipe[] = [
   },
   {
     id: 'grindstone',
-    imageCredit: 'Textura oficial Java 1.21.x (mcasset.cloud)',
-    imageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/grindstone_side.png',
+    imageCredit: 'DigMinecraft - receta de crafteo',
+    imageUrl: 'https://www.digminecraft.com/basic_recipes/images/make_grindstone.png',
     recipe: '2 palos + 2 tablones + 1 losa de piedra',
     references: [
-      { label: 'Texturas oficiales (mcasset)', url: 'https://mcasset.cloud/' },
+      { label: 'Receta visual (DigMinecraft)', url: 'https://www.digminecraft.com/basic_recipes/make_grindstone.php' },
       {
         label: 'Pro Game Guides: grindstone',
         url: 'https://progameguides.com/minecraft/how-to-make-and-use-a-grindstone-in-minecraft/',
@@ -193,11 +193,11 @@ export const enchantingRecipes: EnchantingRecipe[] = [
   },
   {
     id: 'lectern',
-    imageCredit: 'Textura oficial Java 1.21.x (mcasset.cloud)',
-    imageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/lectern_front.png',
+    imageCredit: 'DigMinecraft - receta de crafteo',
+    imageUrl: 'https://www.digminecraft.com/basic_recipes/images/make_lectern.png',
     recipe: '1 librero + 4 losas de madera',
     references: [
-      { label: 'Texturas oficiales (mcasset)', url: 'https://mcasset.cloud/' },
+      { label: 'Receta visual (DigMinecraft)', url: 'https://www.digminecraft.com/basic_recipes/make_lectern.php' },
       { label: 'Beebom: como hacer atril', url: 'https://beebom.com/how-make-lectern-minecraft/' },
       { label: 'Pro Game Guides: lectern', url: 'https://progameguides.com/minecraft/how-to-make-and-use-a-lectern-in-minecraft/' },
       { label: 'Minecraft Wiki: Lectern', url: 'https://minecraft.wiki/w/Lectern' },

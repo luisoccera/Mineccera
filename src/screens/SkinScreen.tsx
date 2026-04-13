@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
@@ -47,6 +47,36 @@ const absoluteExternalUrl = (url: string) => {
   return `https://${clean}`;
 };
 
+const toDownloadFetchCandidates = (url: string) => {
+  const absolute = absoluteExternalUrl(url);
+  if (!absolute) {
+    return [];
+  }
+
+  const candidates = [absolute];
+  candidates.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(absolute)}`);
+  candidates.push(`https://corsproxy.io/?${encodeURIComponent(absolute)}`);
+
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    if (!candidate || seen.has(candidate)) {
+      continue;
+    }
+    seen.add(candidate);
+    unique.push(candidate);
+  }
+  return unique;
+};
+
+const toDownloadFilename = (item: SkinResult) => {
+  const safeTitle = (item.title || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${safeTitle || `skin-${item.id}`}.png`;
+};
+
 export function SkinScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -62,6 +92,7 @@ export function SkinScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState('');
+  const [downloadingId, setDownloadingId] = useState('');
   const [brokenImages, setBrokenImages] = useState<Record<string, true>>({});
 
   const resultCount = results.length;
@@ -153,6 +184,69 @@ export function SkinScreen() {
     }
   };
 
+  const downloadFromMineccera = async (item: SkinResult) => {
+    const downloadUrl = absoluteExternalUrl(item.downloadUrl);
+    if (!downloadUrl) {
+      return;
+    }
+
+    if (Platform.OS !== 'web') {
+      Linking.openURL(downloadUrl);
+      return;
+    }
+
+    setDownloadingId(item.id);
+    setError('');
+
+    try {
+      const attempts = toDownloadFetchCandidates(downloadUrl);
+      let downloadedBlob: Blob | null = null;
+
+      for (const attempt of attempts) {
+        try {
+          const response = await fetch(attempt, {
+            headers: { Accept: 'image/png,image/*;q=0.9,*/*;q=0.8' },
+          });
+          if (!response.ok) {
+            continue;
+          }
+          const blob = await response.blob();
+          if (blob.size > 0) {
+            downloadedBlob = blob;
+            break;
+          }
+        } catch {
+          // Se prueba el siguiente mirror/proxy.
+        }
+      }
+
+      if (!downloadedBlob) {
+        throw new Error('No download blob');
+      }
+
+      const webUrlApi = (globalThis as any).URL;
+      const webDocument = (globalThis as any).document;
+      if (!webUrlApi?.createObjectURL || !webDocument?.createElement) {
+        throw new Error('Web APIs unavailable');
+      }
+
+      const blobUrl = webUrlApi.createObjectURL(downloadedBlob);
+      const anchor = webDocument.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = toDownloadFilename(item);
+      anchor.rel = 'noopener noreferrer';
+      webDocument.body.appendChild(anchor);
+      anchor.click();
+      webDocument.body.removeChild(anchor);
+      setTimeout(() => webUrlApi.revokeObjectURL(blobUrl), 3000);
+    } catch {
+      setError('No se pudo descargar directo desde Mineccera. Se abrio la fuente original como respaldo.');
+      Linking.openURL(downloadUrl);
+    } finally {
+      setDownloadingId('');
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
       <SectionCard
@@ -234,10 +328,12 @@ export function SkinScreen() {
                         </Pressable>
                         <Pressable
                           disabled={!downloadUrl}
-                          onPress={() => downloadUrl && Linking.openURL(downloadUrl)}
+                          onPress={() => downloadFromMineccera(item)}
                           style={[styles.linkBtn, styles.linkDownload, !downloadUrl && styles.buttonDisabled]}
                         >
-                          <Text style={styles.linkBtnText}>Descargar PNG</Text>
+                          <Text style={styles.linkBtnText}>
+                            {downloadingId === item.id ? 'Descargando...' : 'Descargar PNG'}
+                          </Text>
                         </Pressable>
                       </View>
                     </View>
@@ -303,9 +399,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   content: {
+    alignSelf: 'center',
     gap: spacing.md,
+    maxWidth: 1240,
     padding: spacing.md,
     paddingBottom: spacing.xl,
+    width: '100%',
   },
   contentCompact: {
     paddingHorizontal: spacing.sm,

@@ -195,9 +195,12 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   content: {
+    alignSelf: 'center',
     gap: spacing.md,
+    maxWidth: 1240,
     padding: spacing.md,
     paddingBottom: spacing.xl,
+    width: '100%',
   },
   contentCompact: {
     paddingHorizontal: spacing.sm,
