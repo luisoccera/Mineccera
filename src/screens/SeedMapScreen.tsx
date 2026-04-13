@@ -128,6 +128,11 @@ const isWaterLikeTerrain = (terrainId: string) =>
   terrainId === 'lava-sea';
 
 const PAN_DRAG_THRESHOLD_PX = 8;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 8;
+const ZOOM_STEP = 0.25;
+
+const clampZoom = (value: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Number(value.toFixed(2))));
 
 type CategoryFilter = 'all' | StructureCategory;
 
@@ -324,7 +329,7 @@ export function SeedMapScreen() {
   const biomeCellsPerSide = compact ? 36 : 56;
   const biomeCellSize = mapSize / biomeCellsPerSide;
 
-  const effectiveRadius = Math.max(400, Math.round(applied.radius / zoom));
+  const effectiveRadius = Math.max(80, Math.round(applied.radius / zoom));
   const mapMinX = applied.centerX - effectiveRadius;
   const mapMaxX = applied.centerX + effectiveRadius;
   const mapMinZ = applied.centerZ - effectiveRadius;
@@ -860,6 +865,10 @@ export function SeedMapScreen() {
 
   const mapTooltip = markerTooltip ?? cursorTooltip;
 
+  const zoomOut = () => setZoom((value) => clampZoom(value - ZOOM_STEP));
+  const zoomIn = () => setZoom((value) => clampZoom(value + ZOOM_STEP));
+  const resetZoom = () => setZoom(1);
+
   const activateAll = () => setActiveLayers(availableLayers.map((layer) => layer.id));
   const deactivateAll = () => setActiveLayers([]);
   const useRecommended = () => {
@@ -984,12 +993,15 @@ export function SeedMapScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Zoom</Text>
             <View style={styles.zoomRow}>
-              <Pressable onPress={() => setZoom((v) => Math.max(0.5, Number((v - 0.5).toFixed(1))))} style={styles.zoomBtn}>
+              <Pressable onPress={zoomOut} style={styles.zoomBtn}>
                 <Text style={styles.zoomTxt}>-</Text>
               </Pressable>
               <Text style={styles.zoomValue}>{zoom.toFixed(1)}x</Text>
-              <Pressable onPress={() => setZoom((v) => Math.min(3, Number((v + 0.5).toFixed(1))))} style={styles.zoomBtn}>
+              <Pressable onPress={zoomIn} style={styles.zoomBtn}>
                 <Text style={styles.zoomTxt}>+</Text>
+              </Pressable>
+              <Pressable onPress={resetZoom} style={[styles.zoomBtn, styles.zoomResetBtn]}>
+                <Text style={styles.zoomResetTxt}>1x</Text>
               </Pressable>
             </View>
           </View>
@@ -1765,6 +1777,16 @@ const styles = StyleSheet.create({
     height: 34,
     justifyContent: 'center',
     width: 34,
+  },
+  zoomResetBtn: {
+    backgroundColor: '#E6F5EA',
+    borderColor: '#A4CCAF',
+    width: 40,
+  },
+  zoomResetTxt: {
+    color: palette.primaryDark,
+    fontFamily: font.display,
+    fontSize: 10,
   },
   zoomTxt: { color: palette.text, fontFamily: font.display, fontSize: 16, fontWeight: '700', lineHeight: 18 },
   zoomValue: { color: palette.text, fontFamily: font.display, fontSize: 12, minWidth: 42, textAlign: 'center' },
