@@ -37,6 +37,14 @@ const megaPresets: Array<{ id: MegaProjectPreset; label: string }> = [
   { id: 'ba_sing_se', label: 'Ba Sing Se (radio)' },
   { id: 'the_wall', label: 'Muralla Norte (largo)' },
 ];
+type MegaGuideId = 'ba_sing_se' | 'got_wall' | 'aot_wall' | 'zaun';
+
+const megaGuides: Array<{ id: MegaGuideId; label: string }> = [
+  { id: 'ba_sing_se', label: 'Ba Sing Se' },
+  { id: 'got_wall', label: 'Muralla GoT' },
+  { id: 'aot_wall', label: 'Murallas Shingeki' },
+  { id: 'zaun', label: 'Zaun (Arcane)' },
+];
 
 const toPositiveNumber = (value: string, fallback: number) => {
   const parsed = Number(value);
@@ -62,6 +70,7 @@ export function CalculatorScreen() {
     sword: true,
   });
   const [megaPreset, setMegaPreset] = useState<MegaProjectPreset>('ba_sing_se');
+  const [megaGuide, setMegaGuide] = useState<MegaGuideId>('ba_sing_se');
   const [blocksPerHour, setBlocksPerHour] = useState('2400');
   const [megaRadius, setMegaRadius] = useState('900');
   const [megaLength, setMegaLength] = useState('2800');
@@ -126,6 +135,145 @@ export function CalculatorScreen() {
     megaGateWidth,
     megaLength,
     megaMoatWidth,
+    megaPreset,
+    megaRadius,
+    megaRingRoads,
+    megaTowerCount,
+    megaTowerHeight,
+    megaTowerRadius,
+    megaTowerSize,
+    megaTowerSpacing,
+    megaWallHeight,
+    megaWallThickness,
+  ]);
+  const guideContent = useMemo(() => {
+    const radius = toPositiveNumber(megaRadius, 900);
+    const lengthWall = toPositiveNumber(megaLength, 2800);
+    const wallHeight = toPositiveNumber(megaWallHeight, megaPreset === 'ba_sing_se' ? 92 : 180);
+    const wallThickness = toPositiveNumber(megaWallThickness, megaPreset === 'ba_sing_se' ? 14 : 26);
+    const gateCount = toPositiveNumber(megaGateCount, megaPreset === 'ba_sing_se' ? 4 : 3);
+    const gateWidth = toPositiveNumber(megaGateWidth, 24);
+    const ringRoads = toPositiveNumber(megaRingRoads, 3);
+    const towerCount = toPositiveNumber(megaTowerCount, 28);
+    const towerRadius = toPositiveNumber(megaTowerRadius, 7);
+    const towerSpacing = toPositiveNumber(megaTowerSpacing, 320);
+    const towerHeight = toPositiveNumber(megaTowerHeight, 52);
+    const buttressSpacing = toPositiveNumber(megaButtressSpacing, 96);
+    const buttressDepth = toPositiveNumber(megaButtressDepth, 20);
+
+    const outerAot = Math.max(1200, Math.round(radius * 1.3));
+    const middleAot = Math.round(outerAot * 0.66);
+    const innerAot = Math.round(outerAot * 0.34);
+    const districtSize = Math.max(120, Math.round(wallThickness * 12));
+    const zaunRadius = Math.max(280, Math.round(radius * 0.42));
+    const zaunLevels = Math.max(3, Math.round(wallHeight / 24));
+
+    const fmt = (value: number) => Math.round(value).toLocaleString('es-MX');
+
+    if (megaGuide === 'ba_sing_se') {
+      return {
+        checklist: [
+          'Confirma que cada cuarto de muralla tenga al menos una torre.',
+          'Prueba rutas de patrulla de 2 bloques de ancho minimo.',
+          'Ilumina entradas y puentes del foso para evitar mobs.',
+        ],
+        materials: [
+          'Piedra profunda, ladrillo de piedra y andesita para muralla.',
+          'Abeto/roble oscuro para puertas gigantes y torres.',
+          'Faroles, estandartes verdes y cobre para detalles del Reino Tierra.',
+        ],
+        phases: [
+          `Traza un circulo de radio ${fmt(radius)} y divide en 4 cuadrantes.`,
+          `Levanta la muralla principal a ${fmt(wallHeight)} de alto y ${fmt(wallThickness)} de grosor en modulos de 32 bloques.`,
+          `Coloca ${fmt(towerCount)} torres de radio ${fmt(towerRadius)} en puntos altos y accesos.`,
+          `Abre ${fmt(gateCount)} puertas monumentales (ancho ${fmt(gateWidth)}) con puente sobre foso.`,
+          `Construye ${fmt(ringRoads)} anillos internos para mercado, barrios y zona real.`,
+          'Remata con almenas, puestos de vigilancia y jardin central estilo Ba Sing Se.',
+        ],
+        scale: `Escala sugerida: diametro ${fmt(radius * 2)} | altura ${fmt(wallHeight)} | puertas ${fmt(gateCount)}.`,
+        title: 'Ba Sing Se (Avatar) - ciudad amurallada por anillos',
+      };
+    }
+
+    if (megaGuide === 'got_wall') {
+      return {
+        checklist: [
+          'Verifica que las torres se vean cada 12-20 chunks.',
+          'Conecta pasarela superior continua para patrullaje.',
+          'Deja salas internas para hornos, cofres y camas.',
+        ],
+        materials: [
+          'Nieve, hielo compactado y hormigon blanco para cuerpo principal.',
+          'Piedra y deepslate para base y contrafuertes.',
+          'Madera oscura, cadenas y faroles para castillos de guardia.',
+        ],
+        phases: [
+          `Marca el eje de la muralla con largo ${fmt(lengthWall)} en linea recta.`,
+          `Sube el cuerpo principal a ${fmt(wallHeight)} de alto y ${fmt(wallThickness)} de grosor por tramos de 64.`,
+          `Agrega torres cada ${fmt(towerSpacing)} bloques, tamano ${fmt(toPositiveNumber(megaTowerSize, 28))} y alto ${fmt(towerHeight)}.`,
+          `Integra contrafuertes cada ${fmt(buttressSpacing)} bloques con profundidad ${fmt(buttressDepth)}.`,
+          `Abre ${fmt(gateCount)} puertas (ancho ${fmt(gateWidth)}) y fortines laterales.`,
+          'Texturiza con mezcla de blanco/gris para efecto de hielo viejo y viento.',
+        ],
+        scale: `Escala sugerida: largo ${fmt(lengthWall)} | alto ${fmt(wallHeight)} | torres ${fmt(Math.max(2, Math.floor(lengthWall / towerSpacing) + 1))}.`,
+        title: 'Muralla Norte (Game of Thrones) - defensa lineal extrema',
+      };
+    }
+
+    if (megaGuide === 'aot_wall') {
+      return {
+        checklist: [
+          'Cada muro debe tener distrito saliente y doble puerta.',
+          'Deja carreteras radiales entre Maria, Rose y Sina.',
+          'Reserva espacio para cuarteles y puntos de maniobras 3D.',
+        ],
+        materials: [
+          'Piedra lisa, ladrillo de piedra y calcita para muros titanicos.',
+          'Roca, andesita y deepslate para base pesada.',
+          'Madera, cadenas y cobre para distritos y maquinaria.',
+        ],
+        phases: [
+          `Traza tres circulos concentricos: Maria ${fmt(outerAot)}, Rose ${fmt(middleAot)}, Sina ${fmt(innerAot)}.`,
+          `Construye cada muro con altura minima ${fmt(Math.max(120, wallHeight))} y grosor ${fmt(Math.max(18, wallThickness))}.`,
+          `En cada muro crea 4-8 distritos salientes de ancho ${fmt(districtSize)} para control militar.`,
+          'Levanta puertas dobles, esclusas y tuneles de abastecimiento en cada distrito.',
+          'Conecta anillos con caminos, vias de redstone y estaciones de guardianes.',
+          'Completa barrios internos por capas: granjas exteriores, ciudad media y nucleo central.',
+        ],
+        scale: `Preset recomendado para calculadora: radio ${fmt(outerAot)} | alto ${fmt(Math.max(120, wallHeight))} | grosor ${fmt(Math.max(18, wallThickness))}.`,
+        title: 'Murallas de Shingeki no Kyojin - sistema concentricos',
+      };
+    }
+
+    return {
+      checklist: [
+        'Prueba rutas verticales: elevadores de agua + escaleras.',
+        'Combina zonas limpias/contaminadas para narrativa visual.',
+        'Mantiene iluminacion por capas para evitar zonas oscuras.',
+      ],
+      materials: [
+        'Deepslate, toba, ladrillo de piedra y cobre oxidado.',
+        'Cristal tintado, hierro, cadenas y rejillas industriales.',
+        'Iluminacion cian/verde (ranas, faroles, sea lantern) para look quimico.',
+      ],
+      phases: [
+        `Define crater principal de radio ${fmt(zaunRadius)} y al menos ${fmt(zaunLevels)} niveles verticales.`,
+        'Crea base industrial con tuberias, calderas y talleres de quimicos.',
+        'Conecta niveles con pasarelas, puentes metalicos y elevadores de carga.',
+        `Levanta torres de ventilacion de ${fmt(Math.max(36, towerHeight))} bloques y chimeneas activas.`,
+        'Agrega barrios bajos densos, mercados, laboratorios y vias de servicio.',
+        'Aplica niebla visual con vidrio tintado y luces frias para atmosfera Arcane.',
+      ],
+      scale: `Preset recomendado: radio ${fmt(zaunRadius)} | alto ${fmt(Math.max(84, wallHeight))} | puertas ${fmt(Math.max(5, gateCount))}.`,
+      title: 'Zaun (Arcane) - ciudad vertical industrial',
+    };
+  }, [
+    megaButtressDepth,
+    megaButtressSpacing,
+    megaGateCount,
+    megaGateWidth,
+    megaGuide,
+    megaLength,
     megaPreset,
     megaRadius,
     megaRingRoads,
@@ -213,7 +361,10 @@ export function CalculatorScreen() {
             return (
               <Pressable
                 key={preset.id}
-                onPress={() => setMegaPreset(preset.id)}
+                onPress={() => {
+                  setMegaPreset(preset.id);
+                  setMegaGuide(preset.id === 'ba_sing_se' ? 'ba_sing_se' : 'got_wall');
+                }}
                 style={[styles.modeChip, active && styles.modeChipActive]}
               >
                 <Text style={[styles.modeChipText, active && styles.modeChipTextActive]}>{preset.label}</Text>
@@ -334,6 +485,52 @@ export function CalculatorScreen() {
               • {material.label}: {material.blocks.toLocaleString('es-MX')} ({material.stacks})
             </Text>
           ))}
+        </View>
+
+        <View style={styles.resultBox}>
+          <Text style={styles.resultLine}>Guia De Construccion Inspirada</Text>
+          <Text style={styles.resultHint}>Selecciona el proyecto para ver pasos completos en Minecraft.</Text>
+
+          <View style={styles.modes}>
+            {megaGuides.map((guide) => {
+              const active = guide.id === megaGuide;
+              return (
+                <Pressable
+                  key={guide.id}
+                  onPress={() => setMegaGuide(guide.id)}
+                  style={[styles.guideChip, active && styles.guideChipActive]}
+                >
+                  <Text style={[styles.guideChipText, active && styles.guideChipTextActive]}>{guide.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={styles.guidePanel}>
+            <Text style={styles.guideTitle}>{guideContent.title}</Text>
+            <Text style={styles.guideScale}>{guideContent.scale}</Text>
+
+            <Text style={styles.guideSubtitle}>Fases recomendadas</Text>
+            {guideContent.phases.map((phase, index) => (
+              <Text key={`${guideContent.title}-phase-${index}`} style={styles.guideLine}>
+                {index + 1}) {phase}
+              </Text>
+            ))}
+
+            <Text style={styles.guideSubtitle}>Materiales clave</Text>
+            {guideContent.materials.map((material, index) => (
+              <Text key={`${guideContent.title}-material-${index}`} style={styles.guideLine}>
+                {index + 1}) {material}
+              </Text>
+            ))}
+
+            <Text style={styles.guideSubtitle}>Checklist final</Text>
+            {guideContent.checklist.map((item, index) => (
+              <Text key={`${guideContent.title}-check-${index}`} style={styles.guideLine}>
+                {index + 1}) {item}
+              </Text>
+            ))}
+          </View>
         </View>
       </SectionCard>
 
@@ -457,6 +654,56 @@ const styles = StyleSheet.create({
   },
   modeChipTextActive: {
     color: palette.primaryDark,
+  },
+  guideChip: {
+    backgroundColor: '#EDE3D7',
+    borderColor: palette.woodSoft,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+  },
+  guideChipActive: {
+    backgroundColor: '#DFECE3',
+    borderColor: palette.primary,
+  },
+  guideChipText: {
+    color: palette.secondary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  guideChipTextActive: {
+    color: palette.primaryDark,
+  },
+  guidePanel: {
+    backgroundColor: '#F0ECE4',
+    borderColor: '#CDBEA8',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: 6,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+  },
+  guideTitle: {
+    color: palette.text,
+    fontFamily: font.display,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  guideScale: {
+    color: palette.secondary,
+    fontSize: 12,
+  },
+  guideSubtitle: {
+    color: palette.text,
+    fontFamily: font.display,
+    fontSize: 12,
+    marginTop: spacing.xs,
+  },
+  guideLine: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 18,
   },
   modes: {
     flexDirection: 'row',
