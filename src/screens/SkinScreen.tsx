@@ -1,11 +1,14 @@
 import * as Linking from 'expo-linking';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
 import { searchMinecraftSkins, type SkinResult } from '../data/skins';
+
+const FEATURED_SKINS_QUERY = 'latest';
+const FEATURED_SKINS_TARGET = 50;
 
 const dedupeSkins = (items: SkinResult[]) => {
   const seen = new Set<string>();
@@ -92,11 +95,12 @@ export function SkinScreen() {
   const cardsPerRow = deviceClass === 'xl' || deviceClass === 'desktop' ? 4 : compact ? 2 : 3;
   const cardWidth = cardsPerRow === 4 ? '24.2%' : cardsPerRow === 3 ? '32.2%' : '49%';
 
-  const [query, setQuery] = useState('spider man');
+  const [query, setQuery] = useState('');
   const [activeQuery, setActiveQuery] = useState('');
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [results, setResults] = useState<SkinResult[]>([]);
+  const [isFeaturedMode, setIsFeaturedMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);
@@ -109,10 +113,53 @@ export function SkinScreen() {
 
   const statusLine = useMemo(() => {
     if (!activeQuery) {
-      return 'Haz una busqueda para ver skins reales.';
+      return 'Cargando skins del momento...';
+    }
+    if (isFeaturedMode) {
+      return `Skins del momento cargadas: ${resultCount} | Puedes elegir una o buscar algo especifico.`;
     }
     return `Consulta: "${activeQuery}" | Pagina actual: ${page} | Resultados: ${resultCount}`;
-  }, [activeQuery, page, resultCount]);
+  }, [activeQuery, isFeaturedMode, page, resultCount]);
+
+  const loadFeaturedSkins = async () => {
+    setLoading(true);
+    setError('');
+    setBrokenImages({});
+
+    try {
+      let currentPage = 1;
+      let hasNext = true;
+      let collected: SkinResult[] = [];
+      const maxPages = 8;
+
+      while (hasNext && collected.length < FEATURED_SKINS_TARGET && currentPage <= maxPages) {
+        const response = await searchMinecraftSkins(FEATURED_SKINS_QUERY, currentPage);
+        collected = dedupeSkins([...collected, ...response.results]);
+        hasNext = response.hasNextPage;
+        currentPage += 1;
+      }
+
+      const limited = collected.slice(0, FEATURED_SKINS_TARGET);
+      setResults(limited);
+      setActiveQuery(FEATURED_SKINS_QUERY);
+      setPage(Math.max(1, currentPage - 1));
+      setHasNextPage(hasNext);
+      setIsFeaturedMode(true);
+    } catch (searchError) {
+      setResults([]);
+      setHasNextPage(false);
+      setPage(1);
+      setActiveQuery('');
+      setIsFeaturedMode(false);
+      setError(toErrorMessage(searchError));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFeaturedSkins();
+  }, []);
 
   const runSearch = async () => {
     const clean = query.trim();
@@ -130,11 +177,13 @@ export function SkinScreen() {
       setPage(response.page);
       setHasNextPage(response.hasNextPage);
       setResults(dedupeSkins(response.results));
+      setIsFeaturedMode(false);
     } catch (searchError) {
       setResults([]);
       setHasNextPage(false);
       setPage(1);
       setActiveQuery(clean.toLowerCase());
+      setIsFeaturedMode(false);
       setError(toErrorMessage(searchError));
     } finally {
       setLoading(false);
@@ -262,6 +311,9 @@ export function SkinScreen() {
         subtitle="Busca skins reales de MinecraftSkins.com, mira miniatura y descarga el PNG"
         title="Buscador De Skins"
       >
+        <Text style={styles.metaText}>
+          Al abrir esta pestaña se cargan 50 skins del momento automaticamente para que elijas sin buscar.
+        </Text>
         <Text style={[styles.label, compact && styles.labelCompact]}>Buscar skin</Text>
         <TextInput
           autoCapitalize="none"
