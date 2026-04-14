@@ -1,5 +1,6 @@
 import * as Linking from 'expo-linking';
 import { useMemo, useState } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
 import { useDeviceClass } from '../responsive';
@@ -75,6 +76,14 @@ const toDownloadFilename = (item: SkinResult) => {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
   return `${safeTitle || `skin-${item.id}`}.png`;
+};
+
+const getPreferredDownloadUrl = (item: SkinResult) => {
+  const direct = absoluteExternalUrl(item.downloadUrl);
+  if (direct) {
+    return direct;
+  }
+  return `https://www.minecraftskins.com/skin/download/${item.id}`;
 };
 
 export function SkinScreen() {
@@ -185,7 +194,7 @@ export function SkinScreen() {
   };
 
   const downloadFromMineccera = async (item: SkinResult) => {
-    const downloadUrl = absoluteExternalUrl(item.downloadUrl);
+    const downloadUrl = getPreferredDownloadUrl(item);
     if (!downloadUrl) {
       return;
     }
@@ -266,13 +275,22 @@ export function SkinScreen() {
 
         <View style={[styles.controlsRow, compact && styles.controlsRowCompact]}>
           <Pressable onPress={runSearch} style={[styles.button, styles.buttonPrimary]}>
-            <Text style={styles.buttonText}>Buscar</Text>
+            <View style={styles.buttonContent}>
+              <MaterialCommunityIcons color={palette.text} name="magnify" size={15} style={styles.buttonIcon} />
+              <Text style={styles.buttonText}>Buscar</Text>
+            </View>
           </Pressable>
           <Pressable disabled={!canLoadMore} onPress={loadMore} style={[styles.button, styles.buttonSecondary, !canLoadMore && styles.buttonDisabled]}>
-            <Text style={styles.buttonText}>{loadingMore ? 'Cargando...' : 'Cargar mas'}</Text>
+            <View style={styles.buttonContent}>
+              <MaterialCommunityIcons color={palette.text} name="arrow-expand-down" size={14} style={styles.buttonIcon} />
+              <Text style={styles.buttonText}>{loadingMore ? 'Cargando...' : 'Cargar mas'}</Text>
+            </View>
           </Pressable>
           <Pressable disabled={!canLoadMore} onPress={loadAll} style={[styles.button, styles.buttonNeutral, !canLoadMore && styles.buttonDisabled]}>
-            <Text style={styles.buttonText}>{loadingAll ? 'Trayendo...' : 'Traer todo'}</Text>
+            <View style={styles.buttonContent}>
+              <MaterialCommunityIcons color={palette.text} name="download-multiple" size={14} style={styles.buttonIcon} />
+              <Text style={styles.buttonText}>{loadingAll ? 'Trayendo...' : 'Traer todo'}</Text>
+            </View>
           </Pressable>
         </View>
 
@@ -295,7 +313,7 @@ export function SkinScreen() {
             {results.map((item) => {
               const broken = brokenImages[item.id] === true;
               const sourceUrl = absoluteExternalUrl(item.skinUrl);
-              const downloadUrl = absoluteExternalUrl(item.downloadUrl);
+              const downloadUrl = getPreferredDownloadUrl(item);
               return (
                 <View key={item.id} style={[styles.resultCell, { width: cardWidth }]}>
                   <View style={styles.resultCard}>
@@ -324,16 +342,22 @@ export function SkinScreen() {
 
                       <View style={[styles.linkRow, compact && styles.linkRowCompact]}>
                         <Pressable onPress={() => sourceUrl && Linking.openURL(sourceUrl)} style={[styles.linkBtn, styles.linkSource]}>
-                          <Text style={styles.linkBtnTextSource}>Ver fuente</Text>
+                          <View style={styles.buttonContent}>
+                            <MaterialCommunityIcons color={palette.text} name="open-in-new" size={12} style={styles.buttonIcon} />
+                            <Text style={styles.linkBtnTextSource}>Ver fuente</Text>
+                          </View>
                         </Pressable>
                         <Pressable
                           disabled={!downloadUrl}
                           onPress={() => downloadFromMineccera(item)}
                           style={[styles.linkBtn, styles.linkDownload, !downloadUrl && styles.buttonDisabled]}
                         >
-                          <Text style={styles.linkBtnText}>
-                            {downloadingId === item.id ? 'Descargando...' : 'Descargar PNG'}
-                          </Text>
+                          <View style={styles.buttonContent}>
+                            <MaterialCommunityIcons color={palette.text} name="download" size={12} style={styles.buttonIcon} />
+                            <Text style={styles.linkBtnText}>
+                              {downloadingId === item.id ? 'Descargando...' : 'Descargar PNG'}
+                            </Text>
+                          </View>
                         </Pressable>
                       </View>
                     </View>
@@ -364,6 +388,15 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.45,
+  },
+  buttonContent: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+    justifyContent: 'center',
+  },
+  buttonIcon: {
+    marginTop: -1,
   },
   buttonNeutral: {
     backgroundColor: '#F2EFE4',
