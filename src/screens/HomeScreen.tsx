@@ -60,6 +60,21 @@ const proxifyImage = (url?: string) => {
   return `https://images.weserv.nl/?url=${encodeURIComponent(normalized)}&w=128&h=128&fit=inside`;
 };
 
+const realmMembers = [
+  'Lalo',
+  'Kike',
+  'Raúl',
+  'Tete',
+  'Ash',
+  'Miki',
+  'Gallipro',
+  'H tlacuache',
+  'Camila',
+  'Garzón',
+  'Luisoccera',
+  'Morado',
+];
+
 export function HomeScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -134,6 +149,17 @@ export function HomeScreen() {
 
   return (
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
+      <SectionCard subtitle="Explora guias, mapas, encantamientos, proyectos y skins" title="Bienvenido Al Realm">
+        <Text style={styles.welcomeText}>Miembros del realm:</Text>
+        <View style={styles.memberGrid}>
+          {realmMembers.map((member) => (
+            <View key={member} style={styles.memberChip}>
+              <Text style={styles.memberChipText}>{member}</Text>
+            </View>
+          ))}
+        </View>
+      </SectionCard>
+
       <SectionCard
         subtitle="Informacion completa dentro de la app: vida, dano, spawn, XP, drops y notas"
         title="Bestiario De Criaturas (Sin Enlaces Externos)"
@@ -331,6 +357,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 15,
   },
+  memberChip: {
+    backgroundColor: '#E4EEE8',
+    borderColor: '#7FA187',
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  memberChipText: {
+    color: palette.text,
+    fontFamily: font.body,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  memberGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
   monsterBadge: {
     borderRadius: radius.chip,
     borderWidth: 1,
@@ -434,5 +480,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 10,
     lineHeight: 14,
+  },
+  welcomeText: {
+    color: palette.secondary,
+    fontSize: 12,
+    lineHeight: 16,
   },
 });
