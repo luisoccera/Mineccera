@@ -122,15 +122,17 @@ const isWaterLikeTerrain = (terrainId: string) =>
   terrainId === 'lava-sea';
 
 const PAN_DRAG_THRESHOLD_PX = 8;
-const PAN_UPDATE_MIN_BLOCKS = 12;
+const PAN_UPDATE_MIN_BLOCKS = 6;
 const DEFAULT_BASE_RADIUS = 2500;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 8;
 const ZOOM_STEP = 0.25;
 
 const clampZoom = (value: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Number(value.toFixed(2))));
+const clampInt = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(value)));
 
 type CategoryFilter = 'all' | StructureCategory;
+type MapDetailMode = 'auto' | 'high' | 'ultra';
 
 interface AppliedSearch {
   centerX: number;
@@ -216,9 +218,12 @@ export function SeedMapScreen() {
   const [edition, setEdition] = useState<SeedEdition>('java_1_21');
   const [dimension, setDimension] = useState<SeedDimension>('overworld');
   const [zoom, setZoom] = useState(1);
-  const [useExactMap, setUseExactMap] = useState(true);
+  const [useExactMap, setUseExactMap] = useState(false);
   const [exactMapReload, setExactMapReload] = useState(0);
+  const [detailMode, setDetailMode] = useState<MapDetailMode>('auto');
   const [search, setSearch] = useState('');
+  const [mapPlaceQuery, setMapPlaceQuery] = useState('');
+  const [mapPlaceIndex, setMapPlaceIndex] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [openAtSpawn, setOpenAtSpawn] = useState(true);
   const [panEnabled, setPanEnabled] = useState(true);
@@ -324,7 +329,14 @@ export function SeedMapScreen() {
     const sidePadding = compact ? 36 : 72;
     return Math.max(260, Math.min(width - sidePadding, compact ? 390 : 680));
   }, [compact, width]);
-  const biomeCellsPerSide = compact ? (isPanning ? 28 : 36) : isPanning ? 42 : 56;
+  const biomeCellsPerSide = useMemo(() => {
+    const baseCells = compact ? 42 : 62;
+    const detailMultiplier = detailMode === 'ultra' ? 1.46 : detailMode === 'high' ? 1.24 : 1;
+    const zoomMultiplier = zoom <= 0.75 ? 0.86 : zoom <= 1.5 ? 1 : zoom <= 2.5 ? 1.12 : zoom <= 4 ? 1.25 : 1.34;
+    const panMultiplier = isPanning ? 0.62 : 1;
+    const next = baseCells * detailMultiplier * zoomMultiplier * panMultiplier;
+    return clampInt(next, compact ? 28 : 34, compact ? 94 : 122);
+  }, [compact, detailMode, isPanning, zoom]);
   const biomeCellSize = mapSize / biomeCellsPerSide;
 
   const effectiveRadius = Math.max(80, Math.round(applied.radius / zoom));
@@ -564,6 +576,24 @@ export function SeedMapScreen() {
     () => markers.find((marker) => marker.id === hoveredMarkerId) ?? null,
     [hoveredMarkerId, markers]
   );
+  const mapPlaceMatches = useMemo(() => {
+    const query = normalizeSearch(mapPlaceQuery.trim());
+    if (!query) {
+      return [] as Marker[];
+    }
+
+    return markers.filter((marker) => {
+      const haystack = normalizeSearch(
+        `${marker.layer.name} ${marker.layer.description} ${marker.layer.lootHint} ${marker.layer.aliases.join(' ')} ${Math.round(marker.x)} ${Math.round(marker.z)}`
+      );
+      return haystack.includes(query);
+    });
+  }, [mapPlaceQuery, markers]);
+  const activeMapMatch = useMemo(
+    () => (mapPlaceMatches.length ? mapPlaceMatches[Math.max(0, Math.min(mapPlaceMatches.length - 1, mapPlaceIndex))] : null),
+    [mapPlaceIndex, mapPlaceMatches]
+  );
+  const mapMatchIds = useMemo(() => new Set(mapPlaceMatches.map((marker) => marker.id)), [mapPlaceMatches]);
   const centerBiome = useMemo(
     () =>
       hasSearched
@@ -691,6 +721,22 @@ export function SeedMapScreen() {
       setHoveredMarkerId(null);
     }
   }, [hoveredMarkerId, markers]);
+  useEffect(() => {
+    if (!showTerrain && !showBiomes) {
+      setShowTerrain(true);
+    }
+  }, [showBiomes, showTerrain]);
+  useEffect(() => {
+    if (!mapPlaceMatches.length) {
+      if (mapPlaceIndex !== 0) {
+        setMapPlaceIndex(0);
+      }
+      return;
+    }
+    if (mapPlaceIndex > mapPlaceMatches.length - 1) {
+      setMapPlaceIndex(0);
+    }
+  }, [mapPlaceIndex, mapPlaceMatches]);
 
   const gridLines = useMemo(() => {
     const lines: number[] = [];
@@ -1019,6 +1065,38 @@ export function SeedMapScreen() {
     });
   };
 
+  const focusMapPlaceMarker = (marker: Marker) => {
+    setSelectedMarkerId(marker.id);
+    setOpenAtSpawn(false);
+    setX(Math.round(marker.x).toString());
+    setZ(Math.round(marker.z).toString());
+    setApplied((prev) => ({ ...prev, centerX: marker.x, centerZ: marker.z }));
+    setCursor({
+      active: true,
+      canvasX: mapSize / 2,
+      canvasY: mapSize / 2,
+      worldX: marker.x,
+      worldZ: marker.z,
+    });
+  };
+
+  const goToMapPlaceMatch = (direction: 1 | -1) => {
+    if (!mapPlaceMatches.length) {
+      return;
+    }
+    const nextIndex = (mapPlaceIndex + direction + mapPlaceMatches.length) % mapPlaceMatches.length;
+    setMapPlaceIndex(nextIndex);
+    focusMapPlaceMarker(mapPlaceMatches[nextIndex]);
+  };
+
+  const focusFirstMapPlaceMatch = () => {
+    if (!mapPlaceMatches.length) {
+      return;
+    }
+    setMapPlaceIndex(0);
+    focusMapPlaceMarker(mapPlaceMatches[0]);
+  };
+
   const markerIcon = (layer: StructureLayer) => {
     if (layer.id === 'village') return '🏘';
     if (layer.id === 'mansion') return '🏰';
@@ -1115,9 +1193,25 @@ export function SeedMapScreen() {
             <Text style={[styles.chipText, useExactMap && styles.chipTextActive]}>Exacto (cubiomes)</Text>
           </Pressable>
           <Pressable onPress={() => setUseExactMap(false)} style={[styles.chip, !useExactMap && styles.chipActiveSecondary]}>
-            <Text style={[styles.chipText, !useExactMap && styles.chipTextActiveSecondary]}>Interno (experimental)</Text>
+            <Text style={[styles.chipText, !useExactMap && styles.chipTextActiveSecondary]}>Interno PRO (experimental)</Text>
           </Pressable>
         </View>
+        {!useExactMap ? (
+          <>
+            <Text style={styles.label}>Detalle del mapa</Text>
+            <View style={styles.chips}>
+              <Pressable onPress={() => setDetailMode('auto')} style={[styles.chip, detailMode === 'auto' && styles.chipActive]}>
+                <Text style={[styles.chipText, detailMode === 'auto' && styles.chipTextActive]}>Auto</Text>
+              </Pressable>
+              <Pressable onPress={() => setDetailMode('high')} style={[styles.chip, detailMode === 'high' && styles.chipActive]}>
+                <Text style={[styles.chipText, detailMode === 'high' && styles.chipTextActive]}>Alta</Text>
+              </Pressable>
+              <Pressable onPress={() => setDetailMode('ultra')} style={[styles.chip, detailMode === 'ultra' && styles.chipActiveSecondary]}>
+                <Text style={[styles.chipText, detailMode === 'ultra' && styles.chipTextActiveSecondary]}>Ultra</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : null}
 
         <Text style={styles.label}>Centro inicial</Text>
         <View style={styles.chips}>
@@ -1258,13 +1352,13 @@ export function SeedMapScreen() {
           </>
         ) : (
           <Text style={styles.helperText}>
-            Modo exacto activo: el filtrado de capas se gestiona dentro del mapa exacto.
+            Modo exacto activo. Si quieres mas control visual, usa "Interno PRO (experimental)".
           </Text>
         )}
 
         <Pressable onPress={runSearch} style={styles.searchBtn}>
           <Text style={styles.searchBtnTxt}>
-            {useExactMap ? 'Cargar mapa exacto con esta seed' : 'Buscar estructuras con esta seed'}
+            {useExactMap ? 'Cargar mapa exacto con esta seed' : 'Cargar mapa PRO con esta seed'}
           </Text>
         </Pressable>
       </SectionCard>
@@ -1334,6 +1428,38 @@ export function SeedMapScreen() {
               {panEnabled
                 ? 'Arrastra el mapa con el dedo/mouse para moverlo libremente. En web puedes usar la rueda para zoom.'
                 : 'Activa "Mover mapa ON" para desplazarte como en Google Maps.'}
+            </Text>
+            <Text style={styles.label}>Buscar lugar dentro del mapa</Text>
+            <TextInput
+              onChangeText={setMapPlaceQuery}
+              onSubmitEditing={focusFirstMapPlaceMatch}
+              placeholder="Ejemplo: aldea, stronghold, bastion, trial..."
+              style={[styles.input, compact && styles.inputCompact]}
+              value={mapPlaceQuery}
+            />
+            <View style={[styles.row, compact && styles.rowCompact]}>
+              <Pressable onPress={focusFirstMapPlaceMatch} style={[styles.actionBtn, styles.actionGood]}>
+                <Text style={styles.actionTxt}>Buscar en mapa</Text>
+              </Pressable>
+              <Pressable onPress={() => goToMapPlaceMatch(-1)} style={[styles.actionBtn, styles.actionNeutral]}>
+                <Text style={styles.actionTxt}>Anterior</Text>
+              </Pressable>
+              <Pressable onPress={() => goToMapPlaceMatch(1)} style={[styles.actionBtn, styles.actionNeutral]}>
+                <Text style={styles.actionTxt}>Siguiente</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setMapPlaceQuery('');
+                  setMapPlaceIndex(0);
+                }}
+                style={[styles.actionBtn, styles.actionWarn]}
+              >
+                <Text style={styles.actionTxt}>Limpiar</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.helperText}>
+              Coincidencias: {mapPlaceMatches.length}
+              {activeMapMatch ? ` | Mostrando ${mapPlaceIndex + 1}/${mapPlaceMatches.length}: ${activeMapMatch.layer.name}` : ''}
             </Text>
 
             <View style={styles.mapFrame}>
@@ -1485,7 +1611,15 @@ export function SeedMapScreen() {
                         onPressOut={() => setHoveredMarkerId((prev) => (prev === marker.id ? null : prev))}
                         style={[styles.markerTouch, { left: marker.left - 10, top: marker.top - 10 }]}
                       >
-                        <View style={[styles.marker, selectedMarkerId === marker.id && styles.markerSelected, { backgroundColor: marker.color }]}>
+                        <View
+                          style={[
+                            styles.marker,
+                            mapMatchIds.has(marker.id) && styles.markerMatched,
+                            activeMapMatch?.id === marker.id && styles.markerMatchedActive,
+                            selectedMarkerId === marker.id && styles.markerSelected,
+                            { backgroundColor: marker.color },
+                          ]}
+                        >
                           <Text style={styles.markerIcon}>{markerIcon(marker.layer)}</Text>
                         </View>
                       </Pressable>
@@ -1527,7 +1661,8 @@ export function SeedMapScreen() {
             </View>
 
             <Text style={styles.helperText}>
-              Escala aprox: {scalePerCell} bloques por division | Resolucion: {biomeCellsPerSide}x{biomeCellsPerSide} | Puntos: {markers.length}
+              Escala aprox: {scalePerCell} bloques por division | Resolucion: {biomeCellsPerSide}x{biomeCellsPerSide} | Detalle:{' '}
+              {detailMode === 'auto' ? 'Auto' : detailMode === 'high' ? 'Alta' : 'Ultra'} | Puntos: {markers.length}
               {centerBiome ? ` | Bioma centro: ${centerBiome.biomeName}` : ''}
               {centerTerrain ? ` | Terreno centro: ${centerTerrain.terrainName}` : ''}
             </Text>
@@ -1617,7 +1752,14 @@ export function SeedMapScreen() {
 
 const styles = StyleSheet.create({
   page: { backgroundColor: palette.appBackground, flex: 1 },
-  content: { gap: spacing.md, padding: spacing.md, paddingBottom: spacing.xl },
+  content: {
+    alignSelf: 'center',
+    gap: spacing.md,
+    maxWidth: 1320,
+    padding: spacing.md,
+    paddingBottom: spacing.xl,
+    width: '100%',
+  },
   contentCompact: { paddingHorizontal: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm },
   rowCompact: { flexDirection: 'column' },
@@ -1889,6 +2031,18 @@ const styles = StyleSheet.create({
     height: 16,
     justifyContent: 'center',
     width: 16,
+  },
+  markerMatched: {
+    borderColor: '#7FD9FF',
+    borderWidth: 2,
+    height: 18,
+    width: 18,
+  },
+  markerMatchedActive: {
+    borderColor: '#FFE38A',
+    borderWidth: 3,
+    height: 20,
+    width: 20,
   },
   markerSelected: { borderColor: '#FFE38A', borderWidth: 2, height: 18, width: 18 },
   markerIcon: {
