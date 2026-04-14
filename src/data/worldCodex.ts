@@ -8,6 +8,7 @@ export interface CodexEntry {
 
 export interface MonsterStatEntry extends CodexEntry {
   attack: string;
+  backupImageUrl?: string;
   drops: string;
   health: string;
   imageUrl: string;
@@ -195,6 +196,11 @@ export const floraCodex: CodexEntry[] = [
 const toProxyIcon = (url: string) =>
   `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//i, ''))}&w=128&h=128&fit=inside`;
 
+const toMonsterItemTexture = (fileName: string) =>
+  `https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/${fileName}`;
+
+const toMonsterProxyTexture = (fileName: string) => toProxyIcon(toMonsterItemTexture(fileName));
+
 export const monsterCodex: MonsterStatEntry[] = [
   {
     attack: 'Golpe melee: 2.5 / 3 / 4.5 HP (facil/normal/dificil).',
@@ -202,7 +208,8 @@ export const monsterCodex: MonsterStatEntry[] = [
     foundIn: 'Overworld noche, cuevas, spawners',
     health: '20 HP (10 corazones).',
     id: 'zombie',
-    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/zombie_spawn_egg.png'),
+    imageUrl: toMonsterItemTexture('zombie_spawn_egg.png'),
+    backupImageUrl: toMonsterProxyTexture('zombie_spawn_egg.png'),
     name: 'Zombie',
     notes: 'Undead base para farm XP y drops tempranos.',
     rarity: 'Común',
@@ -215,7 +222,8 @@ export const monsterCodex: MonsterStatEntry[] = [
     foundIn: 'Overworld noche, cuevas, spawners',
     health: '20 HP (10 corazones).',
     id: 'skeleton',
-    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/skeleton_spawn_egg.png'),
+    imageUrl: toMonsterItemTexture('skeleton_spawn_egg.png'),
+    backupImageUrl: toMonsterProxyTexture('skeleton_spawn_egg.png'),
     name: 'Esqueleto',
     notes: 'Muy peligroso a distancia; clave para granja de flechas y hueso.',
     rarity: 'Común',
@@ -228,7 +236,8 @@ export const monsterCodex: MonsterStatEntry[] = [
     foundIn: 'Overworld noche, cuevas',
     health: '20 HP (10 corazones).',
     id: 'creeper',
-    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/creeper_spawn_egg.png'),
+    imageUrl: toMonsterItemTexture('creeper_spawn_egg.png'),
+    backupImageUrl: toMonsterProxyTexture('creeper_spawn_egg.png'),
     name: 'Creeper',
     notes: 'Amenaza principal para construcciones por dano de explosion.',
     rarity: 'Común',
@@ -241,7 +250,8 @@ export const monsterCodex: MonsterStatEntry[] = [
     foundIn: 'Overworld noche, cuevas',
     health: '16 HP (8 corazones).',
     id: 'spider',
-    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/spider_spawn_egg.png'),
+    imageUrl: toMonsterItemTexture('spider_spawn_egg.png'),
+    backupImageUrl: toMonsterProxyTexture('spider_spawn_egg.png'),
     name: 'Araña',
     notes: 'Escala muros; neutral de dia, hostil de noche.',
     rarity: 'Común',
@@ -254,7 +264,8 @@ export const monsterCodex: MonsterStatEntry[] = [
     foundIn: 'Overworld noche, End',
     health: '40 HP (20 corazones).',
     id: 'enderman',
-    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/enderman_spawn_egg.png'),
+    imageUrl: toMonsterItemTexture('enderman_spawn_egg.png'),
+    backupImageUrl: toMonsterProxyTexture('enderman_spawn_egg.png'),
     name: 'Enderman',
     notes: 'Clave para progreso al Stronghold y al End.',
     rarity: 'Raro',
@@ -267,7 +278,8 @@ export const monsterCodex: MonsterStatEntry[] = [
     foundIn: 'Pantanos, cabañas, raids',
     health: '26 HP (13 corazones).',
     id: 'witch',
-    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/witch_spawn_egg.png'),
+    imageUrl: toMonsterItemTexture('witch_spawn_egg.png'),
+    backupImageUrl: toMonsterProxyTexture('witch_spawn_egg.png'),
     name: 'Bruja',
     notes: 'Objetivo excelente para granjas de redstone y objetos de alquimia.',
     rarity: 'Poco común',
@@ -280,7 +292,8 @@ export const monsterCodex: MonsterStatEntry[] = [
     foundIn: 'Desiertos',
     health: '20 HP (10 corazones).',
     id: 'husk',
-    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/husk_spawn_egg.png'),
+    imageUrl: toMonsterItemTexture('husk_spawn_egg.png'),
+    backupImageUrl: toMonsterProxyTexture('husk_spawn_egg.png'),
     name: 'Husk',
     notes: 'Variante de zombie que no se quema con el sol.',
     rarity: 'Poco común',
@@ -293,7 +306,8 @@ export const monsterCodex: MonsterStatEntry[] = [
     foundIn: 'Oceanos y rios',
     health: '20 HP (10 corazones).',
     id: 'drowned',
-    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/drowned_spawn_egg.png'),
+    imageUrl: toMonsterItemTexture('drowned_spawn_egg.png'),
+    backupImageUrl: toMonsterProxyTexture('drowned_spawn_egg.png'),
     name: 'Ahogado (Drowned)',
     notes: 'Importante para tridente y nautilo.',
     rarity: 'Poco común',
@@ -306,7 +320,8 @@ export const monsterCodex: MonsterStatEntry[] = [
     foundIn: 'Cielo nocturno',
     health: '20 HP (10 corazones).',
     id: 'phantom',
-    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/phantom_spawn_egg.png'),
+    imageUrl: toMonsterItemTexture('phantom_spawn_egg.png'),
+    backupImageUrl: toMonsterProxyTexture('phantom_spawn_egg.png'),
     name: 'Phantom',
     notes: 'Aparece cuando no duermes; util para reparar Elytra.',
     rarity: 'Poco común',
@@ -319,7 +334,8 @@ export const monsterCodex: MonsterStatEntry[] = [
     foundIn: 'Chunks de slime, pantano',
     health: 'Tamano dependiente (1 / 4 / 16 HP).',
     id: 'slime',
-    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/slime_spawn_egg.png'),
+    imageUrl: toMonsterItemTexture('slime_spawn_egg.png'),
+    backupImageUrl: toMonsterProxyTexture('slime_spawn_egg.png'),
     name: 'Slime',
     notes: 'Basico para pegamento (pistones, redstone, granjas).',
     rarity: 'Poco común',

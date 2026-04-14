@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
+import { useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
 import { monsterCodex, type MonsterStatEntry } from '../data/worldCodex';
@@ -99,7 +100,7 @@ function MonsterCard({
     >
       <View style={styles.monsterHeader}>
         <View style={styles.monsterImageWrap}>
-          <Image source={{ uri: entry.imageUrl }} style={styles.monsterImage} />
+          <MonsterImage backupImageUrl={entry.backupImageUrl} imageUrl={entry.imageUrl} name={entry.name} />
         </View>
         <View style={styles.monsterHeaderBody}>
           <Text numberOfLines={2} style={styles.monsterName}>
@@ -121,6 +122,52 @@ function MonsterCard({
       <Text style={styles.monsterNotes}>{entry.notes}</Text>
     </View>
   );
+}
+
+const toMonsterPlaceholderImage = (name: string) => {
+  const safe = name.replace(/[<>&"]/g, '').slice(0, 20);
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'>
+<defs>
+<linearGradient id='m' x1='0' y1='0' x2='1' y2='1'>
+<stop offset='0%' stop-color='#31473A'/>
+<stop offset='100%' stop-color='#1F2F25'/>
+</linearGradient>
+</defs>
+<rect width='128' height='128' fill='url(#m)'/>
+<rect x='8' y='8' width='112' height='112' rx='12' fill='#2D4436' stroke='#83A08A' stroke-width='3'/>
+<text x='64' y='58' text-anchor='middle' font-family='Verdana, Arial, sans-serif' font-size='14' font-weight='700' fill='#EDE7D7'>Mob</text>
+<text x='64' y='82' text-anchor='middle' font-family='Verdana, Arial, sans-serif' font-size='11' fill='#D7D1C2'>${safe}</text>
+</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+
+function MonsterImage({
+  backupImageUrl,
+  imageUrl,
+  name,
+}: {
+  backupImageUrl?: string;
+  imageUrl: string;
+  name: string;
+}) {
+  const [index, setIndex] = useState(0);
+  const candidates = useMemo(() => {
+    const list = [imageUrl, backupImageUrl, toMonsterPlaceholderImage(name)];
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const item of list) {
+      const clean = (item || '').trim();
+      if (!clean || seen.has(clean)) {
+        continue;
+      }
+      seen.add(clean);
+      unique.push(clean);
+    }
+    return unique;
+  }, [backupImageUrl, imageUrl, name]);
+
+  const active = candidates[index] || candidates[candidates.length - 1];
+  return <Image onError={() => setIndex((prev) => prev + 1)} source={{ uri: active }} style={styles.monsterImage} />;
 }
 
 function StatLine({ label, value }: { label: string; value: string }) {

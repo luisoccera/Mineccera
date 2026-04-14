@@ -130,6 +130,25 @@ const proxifyImage = (url?: string) => {
   return `https://images.weserv.nl/?url=${encodeURIComponent(normalized)}&w=900&h=700&fit=inside`;
 };
 
+const toGuidePlaceholderImage = (title: string) => {
+  const safeTitle = title.replace(/[<>&"]/g, '').slice(0, 38);
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='900' height='675' viewBox='0 0 900 675'>
+<defs>
+<linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
+<stop offset='0%' stop-color='#31493B'/>
+<stop offset='100%' stop-color='#1F2E25'/>
+</linearGradient>
+</defs>
+<rect width='900' height='675' fill='url(#g)'/>
+<rect x='38' y='38' width='824' height='599' rx='18' fill='#2F4538' stroke='#6D896F' stroke-width='4'/>
+<rect x='72' y='88' width='756' height='380' rx='12' fill='#233329' stroke='#7F9A84' stroke-width='3'/>
+<rect x='72' y='490' width='756' height='114' rx='12' fill='#E9E4D8' stroke='#C0B39A' stroke-width='3'/>
+<text x='102' y='550' font-family='Verdana, Arial, sans-serif' font-size='42' font-weight='700' fill='#2A342E'>${safeTitle}</text>
+<text x='102' y='590' font-family='Verdana, Arial, sans-serif' font-size='26' fill='#58665A'>Referencia visual base de Mineccera</text>
+</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+
 const getGuideEmoji = (title: string) => {
   const normalized = title.toLowerCase();
   if (normalized.includes('casa') || normalized.includes('home')) return '🏠';
@@ -146,7 +165,7 @@ const getGuideEmoji = (title: string) => {
 function GuidePreview({ backupUri, title, uri }: { backupUri?: string; title: string; uri: string }) {
   const [sourceIndex, setSourceIndex] = useState(0);
   const candidates = useMemo(() => {
-    const list = [uri, proxifyImage(uri), backupUri, proxifyImage(backupUri)];
+    const list = [uri, proxifyImage(uri), backupUri, proxifyImage(backupUri), toGuidePlaceholderImage(title)];
     const unique: string[] = [];
     const seen = new Set<string>();
     for (const candidate of list) {

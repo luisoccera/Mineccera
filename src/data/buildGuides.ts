@@ -149,6 +149,10 @@ const templates: BuildTemplate[] = [
   },
 ];
 
+export function getCommonTemplates(limit = 4): BuildTemplate[] {
+  return templates.slice(0, Math.max(1, Math.floor(limit)));
+}
+
 const trustedHosts = [
   'duckduckgo.com',
   'www.duckduckgo.com',

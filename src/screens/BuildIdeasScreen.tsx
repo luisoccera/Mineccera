@@ -1,4 +1,5 @@
 import { ScrollView, StyleSheet, Text } from 'react-native';
+import { BuildSearchPanel } from '../components/BuildSearchPanel';
 import { CommonGuidesPanel } from '../components/CommonGuidesPanel';
 import { FarmSearchPanel } from '../components/FarmSearchPanel';
 import { SectionCard } from '../components/SectionCard';
@@ -25,8 +26,15 @@ export function BuildIdeasScreen() {
         <FarmSearchPanel />
       </SectionCard>
 
+      <SectionCard
+        subtitle="Busqueda abierta en la red para cualquier estructura: casas, castillos, estatuas, pixel art, redstone y megabuilds"
+        title="Buscador Global De Estructuras"
+      >
+        <BuildSearchPanel />
+      </SectionCard>
+
       <Text style={styles.legalText}>
-        Fuentes principales: Minecraft Wiki + guias tecnicas verificadas por granja.
+        Fuentes principales: Minecraft Wiki + guias tecnicas verificadas + comunidad (Reddit/PlanetMinecraft/YouTube).
       </Text>
     </ScrollView>
   );
