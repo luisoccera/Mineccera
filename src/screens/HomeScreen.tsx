@@ -149,7 +149,10 @@ export function HomeScreen() {
 
   return (
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
-      <SectionCard subtitle="Explora guias, mapas, encantamientos, proyectos y skins" title="Bienvenido Al Realm">
+      <SectionCard
+        subtitle="Explora guias, mapas, encantamientos, proyectos y skins"
+        title="Bienvenido al Realm de la Unión Barbies"
+      >
         <Text style={styles.welcomeText}>Miembros del realm:</Text>
         <View style={styles.memberGrid}>
           {realmMembers.map((member) => (
