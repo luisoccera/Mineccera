@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Linking from 'expo-linking';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
 import { useDeviceClass } from '../responsive';
 import {
   enchantments,
+  enchantmentNameById,
+  enchantmentNotesById,
+  enchantmentWikiUrlById,
   getEnchantmentsForItem,
   ItemCategory,
   itemIconByCategory,
@@ -28,6 +32,9 @@ const itemOrder: ItemCategory[] = [
   'shield',
   'shears',
   'brush',
+  'flint_and_steel',
+  'carrot_on_a_stick',
+  'warped_fungus_on_a_stick',
   'helmet',
   'turtle_shell',
   'chestplate',
@@ -41,6 +48,8 @@ export function EnchantingScreen() {
   const compact = deviceClass === 'mobile';
   const [itemType, setItemType] = useState<ItemCategory>('pickaxe');
   const [brokenIcons, setBrokenIcons] = useState<Record<ItemCategory, true>>({} as Record<ItemCategory, true>);
+  const [enchantSearch, setEnchantSearch] = useState('');
+  const [selectedGuideEnchantId, setSelectedGuideEnchantId] = useState('mending');
   const [selectedLevels, setSelectedLevels] = useState<Record<string, number>>({
     efficiency: 5,
     fortune: 3,
@@ -70,6 +79,28 @@ export function EnchantingScreen() {
     }
     return optimizeAnvilOrder(selectedForPlan);
   }, [selectedForPlan]);
+  const enchantGuides = useMemo(() => {
+    const q = enchantSearch.trim().toLowerCase();
+    return enchantments
+      .filter((enchantment) => {
+        if (!q) {
+          return true;
+        }
+        const itemNames = enchantment.categories.map((category) => itemLabels[category]).join(' ').toLowerCase();
+        const incompatible = (enchantment.incompatibleWith || [])
+          .map((id) => enchantmentNameById[id] || id)
+          .join(' ')
+          .toLowerCase();
+        const haystack = `${enchantment.name.toLowerCase()} ${itemNames} ${incompatible}`;
+        return haystack.includes(q);
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [enchantSearch]);
+
+  const selectedGuideEnchant = useMemo(
+    () => enchantGuides.find((entry) => entry.id === selectedGuideEnchantId) || enchantGuides[0] || null,
+    [enchantGuides, selectedGuideEnchantId],
+  );
 
   const resetPreset = (nextItem: ItemCategory) => {
     const available = getEnchantmentsForItem(nextItem);
@@ -226,6 +257,85 @@ export function EnchantingScreen() {
       </SectionCard>
 
       <SectionCard
+        subtitle="Busqueda completa de encantamientos con compatibilidad, conflictos y fuente oficial"
+        title="Buscador De Encantamientos"
+      >
+        <View style={styles.searchInputWrap}>
+          <Text style={styles.helperText}>Buscar encantamiento o item compatible</Text>
+          <TextInput
+            autoCapitalize="none"
+            onChangeText={setEnchantSearch}
+            placeholder="Ej: mending, protection, tridente, maza, botas..."
+            placeholderTextColor={palette.muted}
+            style={styles.searchInput}
+            value={enchantSearch}
+          />
+        </View>
+        <View style={styles.searchRowNative}>
+          <Pressable onPress={() => setEnchantSearch('protection')} style={styles.quickSearchChip}>
+            <Text style={styles.quickSearchText}>Protection</Text>
+          </Pressable>
+          <Pressable onPress={() => setEnchantSearch('mending')} style={styles.quickSearchChip}>
+            <Text style={styles.quickSearchText}>Mending</Text>
+          </Pressable>
+          <Pressable onPress={() => setEnchantSearch('trident')} style={styles.quickSearchChip}>
+            <Text style={styles.quickSearchText}>Tridente</Text>
+          </Pressable>
+          <Pressable onPress={() => setEnchantSearch('mace')} style={styles.quickSearchChip}>
+            <Text style={styles.quickSearchText}>Maza</Text>
+          </Pressable>
+          <Pressable onPress={() => setEnchantSearch('')} style={styles.quickSearchChip}>
+            <Text style={styles.quickSearchText}>Todos</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.enchantGuideMeta}>Encantamientos listados: {enchantGuides.length}</Text>
+
+        <View style={styles.enchantGuideList}>
+          {enchantGuides.map((entry) => (
+            <Pressable
+              key={entry.id}
+              onPress={() => setSelectedGuideEnchantId(entry.id)}
+              style={[styles.enchantGuideChip, selectedGuideEnchant?.id === entry.id && styles.enchantGuideChipActive]}
+            >
+              <Text style={styles.enchantGuideChipText}>{entry.name}</Text>
+              <Text style={styles.enchantGuideChipMeta}>Max {entry.maxLevel}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {selectedGuideEnchant ? (
+          <View style={styles.enchantGuideDetail}>
+            <Text style={styles.enchantGuideTitle}>{selectedGuideEnchant.name}</Text>
+            <Text style={styles.enchantGuideText}>
+              Descripcion: {enchantmentNotesById[selectedGuideEnchant.id] || 'Encantamiento util para builds/progreso.'}
+            </Text>
+            <Text style={styles.enchantGuideText}>
+              Nivel maximo: {selectedGuideEnchant.maxLevel} | Multiplicador yunque: {selectedGuideEnchant.multiplier}
+            </Text>
+            <Text style={styles.enchantGuideText}>
+              Compatible con:{' '}
+              {selectedGuideEnchant.categories.map((category) => itemLabels[category]).join(', ')}
+            </Text>
+            <Text style={styles.enchantGuideText}>
+              Incompatible con:{' '}
+              {(selectedGuideEnchant.incompatibleWith || []).length
+                ? selectedGuideEnchant.incompatibleWith
+                    ?.map((id) => enchantmentNameById[id] || id)
+                    .join(', ')
+                : 'Ninguno'}
+            </Text>
+            <Pressable
+              onPress={() => Linking.openURL(enchantmentWikiUrlById[selectedGuideEnchant.id])}
+              style={styles.wikiButton}
+            >
+              <Text style={styles.wikiButtonText}>Fuente oficial: Minecraft Wiki</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </SectionCard>
+
+      <SectionCard
         subtitle="El orden se calcula con penalizacion de yunque y costo por libro"
         title="Orden Optimo De Yunque"
       >
@@ -324,6 +434,107 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: spacing.xs,
     marginTop: spacing.md,
+  },
+  searchInputWrap: {
+    gap: 6,
+  },
+  searchInput: {
+    backgroundColor: palette.stoneSoft,
+    borderColor: palette.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    color: palette.text,
+    fontSize: 14,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 10,
+  },
+  searchRowNative: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  quickSearchChip: {
+    backgroundColor: '#E6EEE7',
+    borderColor: '#9DBAA6',
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+  },
+  quickSearchText: {
+    color: palette.primaryDark,
+    fontFamily: font.display,
+    fontSize: 11,
+  },
+  enchantGuideMeta: {
+    color: palette.muted,
+    fontSize: 12,
+    marginTop: spacing.sm,
+  },
+  enchantGuideList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  enchantGuideChip: {
+    backgroundColor: '#E7EEE9',
+    borderColor: '#B8C8BE',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    minWidth: 112,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+  },
+  enchantGuideChipActive: {
+    backgroundColor: '#DCEBDD',
+    borderColor: palette.primary,
+  },
+  enchantGuideChipText: {
+    color: palette.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  enchantGuideChipMeta: {
+    color: palette.muted,
+    fontSize: 10,
+    marginTop: 1,
+  },
+  enchantGuideDetail: {
+    backgroundColor: '#EDF2EE',
+    borderColor: '#C2CEC5',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: 6,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+  },
+  enchantGuideTitle: {
+    color: palette.text,
+    fontFamily: font.display,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  enchantGuideText: {
+    color: palette.text,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  wikiButton: {
+    alignItems: 'center',
+    backgroundColor: '#EDE3D7',
+    borderColor: palette.woodSoft,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+  },
+  wikiButtonText: {
+    color: palette.secondary,
+    fontFamily: font.display,
+    fontSize: 11,
   },
   itemChip: {
     alignItems: 'center',

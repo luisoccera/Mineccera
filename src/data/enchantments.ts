@@ -3,10 +3,12 @@ export type ItemCategory =
   | 'boots'
   | 'bow'
   | 'brush'
+  | 'carrot_on_a_stick'
   | 'chestplate'
   | 'crossbow'
   | 'elytra'
   | 'fishing_rod'
+  | 'flint_and_steel'
   | 'helmet'
   | 'hoe'
   | 'leggings'
@@ -17,7 +19,8 @@ export type ItemCategory =
   | 'shovel'
   | 'sword'
   | 'trident'
-  | 'turtle_shell';
+  | 'turtle_shell'
+  | 'warped_fungus_on_a_stick';
 
 export interface EnchantmentDefinition {
   categories: ItemCategory[];
@@ -57,6 +60,9 @@ const allGear: ItemCategory[] = [
   'shield',
   'shears',
   'brush',
+  'flint_and_steel',
+  'carrot_on_a_stick',
+  'warped_fungus_on_a_stick',
 ];
 
 export const itemLabels: Record<ItemCategory, string> = {
@@ -64,10 +70,12 @@ export const itemLabels: Record<ItemCategory, string> = {
   boots: 'Botas',
   bow: 'Arco',
   brush: 'Pincel',
+  carrot_on_a_stick: 'Cana+Zanahoria',
   chestplate: 'Pechera',
   crossbow: 'Ballesta',
   elytra: 'Elytra',
   fishing_rod: 'Cana',
+  flint_and_steel: 'Pedernal',
   helmet: 'Casco',
   hoe: 'Azada',
   leggings: 'Pantalones',
@@ -79,28 +87,82 @@ export const itemLabels: Record<ItemCategory, string> = {
   sword: 'Espada',
   trident: 'Tridente',
   turtle_shell: 'Caparazon',
+  warped_fungus_on_a_stick: 'Cana+Hongo',
 };
 
+const toProxyIcon = (url: string) =>
+  `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//i, ''))}&w=96&h=96&fit=inside`;
+
 export const itemIconByCategory: Record<ItemCategory, string> = {
-  axe: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_axe.png',
-  boots: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_boots.png',
-  bow: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/bow.png',
-  brush: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/brush.png',
-  chestplate: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_chestplate.png',
-  crossbow: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/crossbow_standby.png',
-  elytra: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/elytra.png',
-  fishing_rod: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/fishing_rod.png',
-  helmet: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_helmet.png',
-  hoe: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_hoe.png',
-  leggings: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_leggings.png',
-  mace: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/mace.png',
-  pickaxe: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_pickaxe.png',
-  shears: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/shears.png',
-  shield: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/shield.png',
-  shovel: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_shovel.png',
-  sword: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_sword.png',
-  trident: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/trident.png',
-  turtle_shell: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/turtle_helmet.png',
+  axe: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_axe.png'),
+  boots: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_boots.png'),
+  bow: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/bow.png'),
+  brush: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/brush.png'),
+  carrot_on_a_stick: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/carrot_on_a_stick.png'),
+  chestplate: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_chestplate.png'),
+  crossbow: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/crossbow_standby.png'),
+  elytra: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/elytra.png'),
+  fishing_rod: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/fishing_rod.png'),
+  flint_and_steel: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/flint_and_steel.png'),
+  helmet: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_helmet.png'),
+  hoe: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_hoe.png'),
+  leggings: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_leggings.png'),
+  mace: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/mace.png'),
+  pickaxe: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_pickaxe.png'),
+  shears: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/shears.png'),
+  shield: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/shield.png'),
+  shovel: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_shovel.png'),
+  sword: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_sword.png'),
+  trident: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/trident.png'),
+  turtle_shell: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/turtle_helmet.png'),
+  warped_fungus_on_a_stick: toProxyIcon(
+    'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/warped_fungus_on_a_stick.png',
+  ),
+};
+
+export const enchantmentNotesById: Record<string, string> = {
+  aqua_affinity: 'Aumenta velocidad de minado bajo agua.',
+  bane_arthropods: 'Mas daño contra arañas, silverfish y endermites.',
+  blast_protection: 'Reduce daño por explosiones.',
+  breach: 'Reduce armadura del objetivo al golpear con maza.',
+  channeling: 'Invoca rayos durante tormenta con tridente.',
+  curse_binding: 'El objeto no se puede quitar facilmente.',
+  curse_vanishing: 'El item desaparece al morir.',
+  density: 'Aumenta daño por impacto vertical de la maza.',
+  depth_strider: 'Te mueves mas rapido en agua.',
+  efficiency: 'Acelera minado o uso de herramienta.',
+  feather_falling: 'Reduce daño por caida.',
+  fire_aspect: 'Prende fuego al objetivo al golpear.',
+  fire_protection: 'Reduce daño por fuego/lava.',
+  flame: 'Flechas de arco incendiarias.',
+  fortune: 'Mas drops en minerales/cosechas compatibles.',
+  frost_walker: 'Congela agua al caminar.',
+  impaling: 'Mas daño con tridente en objetivos acuaticos.',
+  infinity: 'Disparo infinito con una flecha en inventario.',
+  knockback: 'Empuja al objetivo al golpear.',
+  looting: 'Incrementa drops de mobs.',
+  loyalty: 'El tridente regresa al lanzarlo.',
+  luck_of_the_sea: 'Mejora loot de pesca.',
+  lure: 'Pesca mas rapido.',
+  mending: 'Repara item usando experiencia.',
+  multishot: 'Dispara 3 proyectiles en ballesta.',
+  piercing: 'La flecha atraviesa entidades.',
+  power: 'Mas daño de arco.',
+  projectile_protection: 'Reduce daño de proyectiles.',
+  protection: 'Proteccion general contra daño.',
+  punch: 'Mayor empuje en flechas de arco.',
+  quick_charge: 'Recarga mas rapida de ballesta.',
+  respiration: 'Mas tiempo de respiracion bajo agua.',
+  riptide: 'Te impulsa con tridente bajo lluvia/agua.',
+  sharpness: 'Aumenta daño cuerpo a cuerpo.',
+  silk_touch: 'Minado con bloque original.',
+  smite: 'Mas daño contra no-muertos.',
+  soul_speed: 'Mas velocidad en arena/alma soul soil.',
+  swift_sneak: 'Aumenta velocidad agachado.',
+  sweeping_edge: 'Mejora daño en barrido de espada.',
+  thorns: 'Devuelve daño al atacante.',
+  unbreaking: 'Reduce desgaste del objeto.',
+  wind_burst: 'Impulso de viento al golpear con maza.',
 };
 
 export const enchantments: EnchantmentDefinition[] = [
@@ -304,6 +366,7 @@ export const recommendedPreset: Record<ItemCategory, string[]> = {
   crossbow: ['quick_charge', 'multishot', 'unbreaking', 'mending'],
   elytra: ['unbreaking', 'mending'],
   fishing_rod: ['lure', 'luck_of_the_sea', 'unbreaking', 'mending'],
+  flint_and_steel: ['unbreaking', 'mending'],
   helmet: ['protection', 'respiration', 'aqua_affinity', 'unbreaking', 'mending'],
   hoe: ['efficiency', 'fortune', 'unbreaking', 'mending'],
   leggings: ['protection', 'swift_sneak', 'unbreaking', 'mending'],
@@ -315,7 +378,19 @@ export const recommendedPreset: Record<ItemCategory, string[]> = {
   sword: ['sharpness', 'looting', 'fire_aspect', 'sweeping_edge', 'unbreaking', 'mending'],
   trident: ['impaling', 'loyalty', 'channeling', 'unbreaking', 'mending'],
   turtle_shell: ['protection', 'respiration', 'aqua_affinity', 'unbreaking', 'mending'],
+  carrot_on_a_stick: ['unbreaking', 'mending'],
+  warped_fungus_on_a_stick: ['unbreaking', 'mending'],
 };
+
+export const enchantmentNameById = enchantments.reduce<Record<string, string>>((acc, enchant) => {
+  acc[enchant.id] = enchant.name;
+  return acc;
+}, {});
+
+export const enchantmentWikiUrlById = enchantments.reduce<Record<string, string>>((acc, enchant) => {
+  acc[enchant.id] = `https://minecraft.wiki/w/${encodeURIComponent(enchant.name.replace(/\s+/g, '_'))}`;
+  return acc;
+}, {});
 
 export function getEnchantmentsForItem(category: ItemCategory) {
   return enchantments.filter((enchant) => enchant.categories.includes(category));
