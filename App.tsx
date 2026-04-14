@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { MainTabs } from './src/navigation/MainTabs';
 import { palette } from './src/theme';
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
     PressStart2P_400Regular,
+    ...MaterialCommunityIcons.font,
   });
   const [fontTimeout, setFontTimeout] = useState(false);
 
@@ -18,7 +20,7 @@ export default function App() {
     return () => clearTimeout(timeoutId);
   }, []);
 
-  const appReady = fontsLoaded || Boolean(fontError) || fontTimeout || Platform.OS === 'web';
+  const appReady = fontsLoaded || Boolean(fontError) || fontTimeout;
 
   if (!appReady) {
     return (
