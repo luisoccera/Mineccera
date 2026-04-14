@@ -1,20 +1,9 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Linking from 'expo-linking';
 import { useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
 import { monsterCodex, type MonsterStatEntry } from '../data/worldCodex';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
-
-const sources = [
-  { label: 'Minecraft Wiki: Hostile mobs', url: 'https://minecraft.wiki/w/Monster' },
-  { label: 'Minecraft Wiki: Zombie', url: 'https://minecraft.wiki/w/Zombie' },
-  { label: 'Minecraft Wiki: Creeper', url: 'https://minecraft.wiki/w/Creeper' },
-  { label: 'Minecraft Wiki: Enderman', url: 'https://minecraft.wiki/w/Enderman' },
-  { label: 'Minecraft Wiki: Witch', url: 'https://minecraft.wiki/w/Witch' },
-  { label: 'Minecraft Wiki: Slime', url: 'https://minecraft.wiki/w/Slime' },
-];
 
 export function HomeScreen() {
   const deviceClass = useDeviceClass();
@@ -23,23 +12,8 @@ export function HomeScreen() {
 
   return (
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
-      <LinearGradient
-        colors={['#5E7462', '#6A7F70', '#4C6458']}
-        end={{ x: 1, y: 1 }}
-        start={{ x: 0, y: 0 }}
-        style={[styles.hero, compact && styles.heroCompact]}
-      >
-        <Text style={[styles.heroTitle, compact && styles.heroTitleCompact]}>Guia Pro Minecraft</Text>
-        <Text style={[styles.welcomeText, compact && styles.welcomeTextCompact]}>
-          welcome to the final... al realm de Luisoccera 8)
-        </Text>
-        <Text style={[styles.heroSubtitle, compact && styles.heroSubtitleCompact]}>
-          Bestiario rapido con stats reales para combate, farmeo y rutas seguras.
-        </Text>
-      </LinearGradient>
-
       <SectionCard
-        subtitle="Desglose de monstruos con imagen, vida, dano, spawn, XP y drops"
+        subtitle="Bestiario completo con imagen, vida, dano, spawn, XP y drops"
         title="Bestiario De Monstruos"
       >
         <View style={styles.legendRow}>
@@ -55,16 +29,6 @@ export function HomeScreen() {
               key={entry.id}
               wideCards={wideCards}
             />
-          ))}
-        </View>
-      </SectionCard>
-
-      <SectionCard subtitle="Referencias base del bestiario." title="Fuentes usadas">
-        <View style={styles.sourceList}>
-          {sources.map((source) => (
-            <Pressable key={source.url} onPress={() => Linking.openURL(source.url)} style={styles.sourceButton}>
-              <Text style={styles.sourceButtonText}>{source.label}</Text>
-            </Pressable>
           ))}
         </View>
       </SectionCard>
@@ -100,7 +64,12 @@ function MonsterCard({
     >
       <View style={styles.monsterHeader}>
         <View style={styles.monsterImageWrap}>
-          <MonsterImage backupImageUrl={entry.backupImageUrl} imageUrl={entry.imageUrl} name={entry.name} />
+          <MonsterImage
+            backupImageUrl={entry.backupImageUrl}
+            emoji={entry.emoji}
+            imageUrl={entry.imageUrl}
+            name={entry.name}
+          />
         </View>
         <View style={styles.monsterHeaderBody}>
           <Text numberOfLines={2} style={styles.monsterName}>
@@ -143,16 +112,19 @@ const toMonsterPlaceholderImage = (name: string) => {
 
 function MonsterImage({
   backupImageUrl,
+  emoji,
   imageUrl,
   name,
 }: {
   backupImageUrl?: string;
+  emoji: string;
   imageUrl: string;
   name: string;
 }) {
   const [index, setIndex] = useState(0);
+  const [showEmojiFallback, setShowEmojiFallback] = useState(false);
   const candidates = useMemo(() => {
-    const list = [imageUrl, backupImageUrl, toMonsterPlaceholderImage(name)];
+    const list = [imageUrl, backupImageUrl];
     const unique: string[] = [];
     const seen = new Set<string>();
     for (const item of list) {
@@ -167,7 +139,28 @@ function MonsterImage({
   }, [backupImageUrl, imageUrl, name]);
 
   const active = candidates[index] || candidates[candidates.length - 1];
-  return <Image onError={() => setIndex((prev) => prev + 1)} source={{ uri: active }} style={styles.monsterImage} />;
+  if (!active || showEmojiFallback) {
+    return (
+      <View style={styles.monsterEmojiFallback}>
+        <Text style={styles.monsterEmoji}>{emoji}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      onError={() => {
+        const next = index + 1;
+        if (next >= candidates.length) {
+          setShowEmojiFallback(true);
+          return;
+        }
+        setIndex(next);
+      }}
+      source={{ uri: active }}
+      style={styles.monsterImage}
+    />
+  );
 }
 
 function StatLine({ label, value }: { label: string; value: string }) {
@@ -206,34 +199,6 @@ const styles = StyleSheet.create({
   },
   contentCompact: {
     paddingHorizontal: spacing.sm,
-  },
-  hero: {
-    borderRadius: radius.lg,
-    gap: spacing.sm,
-    padding: spacing.lg,
-  },
-  heroCompact: {
-    gap: spacing.xs,
-    padding: spacing.md,
-  },
-  heroSubtitle: {
-    color: '#F7F1E1',
-    fontSize: 12,
-    lineHeight: 19,
-  },
-  heroSubtitleCompact: {
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  heroTitle: {
-    color: '#F7F1E1',
-    fontFamily: font.pixel,
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  heroTitleCompact: {
-    fontSize: 12,
-    lineHeight: 18,
   },
   legendRow: {
     gap: 2,
@@ -293,6 +258,20 @@ const styles = StyleSheet.create({
     height: 46,
     width: 46,
   },
+  monsterEmojiFallback: {
+    alignItems: 'center',
+    backgroundColor: '#D5E2D9',
+    borderColor: '#95A89D',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    height: 46,
+    justifyContent: 'center',
+    width: 46,
+  },
+  monsterEmoji: {
+    fontSize: 22,
+    lineHeight: 24,
+  },
   monsterImageWrap: {
     alignItems: 'center',
     backgroundColor: '#DFE6E1',
@@ -323,22 +302,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.appBackground,
     flex: 1,
   },
-  sourceButton: {
-    backgroundColor: palette.stoneSoft,
-    borderColor: palette.woodSoft,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  sourceButtonText: {
-    color: palette.muted,
-    fontSize: 10,
-    lineHeight: 13,
-  },
-  sourceList: {
-    gap: spacing.xs,
-  },
   statLabel: {
     color: palette.primaryDark,
     fontFamily: font.display,
@@ -362,16 +325,6 @@ const styles = StyleSheet.create({
     color: palette.text,
     flex: 1,
     fontSize: 10,
-    lineHeight: 14,
-  },
-  welcomeText: {
-    color: '#F7F1E1',
-    fontFamily: font.pixel,
-    fontSize: 9,
-    lineHeight: 16,
-  },
-  welcomeTextCompact: {
-    fontSize: 8,
     lineHeight: 14,
   },
 });
