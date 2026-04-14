@@ -141,8 +141,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   itemCard: {
-    backgroundColor: '#F8F4EA',
-    borderColor: '#C2AF87',
+    backgroundColor: palette.stoneSoft,
+    borderColor: palette.border,
     borderRadius: radius.md,
     borderWidth: 1,
     gap: 4,
@@ -197,8 +197,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   previewImage: {
-    backgroundColor: '#1E1A13',
-    borderColor: '#CFBE95',
+    backgroundColor: '#223329',
+    borderColor: palette.border,
     borderRadius: radius.sm,
     borderWidth: 1,
     aspectRatio: 4 / 3,
@@ -207,8 +207,8 @@ const styles = StyleSheet.create({
   },
   previewFallback: {
     alignItems: 'center',
-    backgroundColor: '#E6DABF',
-    borderColor: '#CFBE95',
+    backgroundColor: palette.stone,
+    borderColor: palette.border,
     borderRadius: radius.sm,
     borderWidth: 1,
     gap: 6,
@@ -231,8 +231,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   referenceChip: {
-    backgroundColor: '#EAF2E6',
-    borderColor: '#9CBF8D',
+    backgroundColor: '#E2ECE6',
+    borderColor: palette.primary,
     borderRadius: radius.chip,
     borderWidth: 1,
     paddingHorizontal: spacing.xs,

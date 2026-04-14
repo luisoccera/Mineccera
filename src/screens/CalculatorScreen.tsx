@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: palette.stoneSoft,
     borderColor: palette.border,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   modeChip: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: palette.stone,
     borderColor: palette.border,
     borderRadius: radius.chip,
     borderWidth: 1,
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   modeChipActive: {
-    backgroundColor: '#DFF4E8',
+    backgroundColor: '#DFECE3',
     borderColor: palette.primary,
   },
   modeChipText: {
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   pieceRow: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: palette.stoneSoft,
     borderColor: palette.border,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -277,12 +277,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   pieceRowActive: {
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#DEECE3',
     borderColor: palette.primary,
   },
   quickButton: {
-    backgroundColor: '#FFF5E9',
-    borderColor: '#F5D4A5',
+    backgroundColor: '#EDE3D7',
+    borderColor: palette.woodSoft,
     borderRadius: radius.chip,
     borderWidth: 1,
     paddingHorizontal: spacing.md,
@@ -294,8 +294,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   resultBox: {
-    backgroundColor: '#F7FAFC',
-    borderColor: '#D7E2EE',
+    backgroundColor: '#E7EEE9',
+    borderColor: '#B8C8BE',
     borderRadius: radius.md,
     borderWidth: 1,
     gap: 6,

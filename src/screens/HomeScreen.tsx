@@ -19,7 +19,7 @@ export function HomeScreen() {
   return (
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
       <LinearGradient
-        colors={['#6AA84F', '#8B5A2B', '#4F8A3A']}
+        colors={['#5E7462', '#6A7F70', '#4C6458']}
         end={{ x: 1, y: 1 }}
         start={{ x: 0, y: 0 }}
         style={[styles.hero, compact && styles.heroCompact]}
@@ -108,8 +108,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sourceButton: {
-    backgroundColor: '#EFE7D4',
-    borderColor: '#D2C19B',
+    backgroundColor: palette.stoneSoft,
+    borderColor: palette.woodSoft,
     borderRadius: radius.md,
     borderWidth: 1,
     paddingHorizontal: spacing.xs,

@@ -57,6 +57,7 @@ export function MainTabs() {
           paddingHorizontal: compact ? 1 : 2,
         },
         tabBarStyle: {
+          backgroundColor: palette.surface,
           borderTopColor: palette.border,
           height: compact ? 74 : tablet ? 76 : 80,
           paddingBottom: compact ? 9 : 10,

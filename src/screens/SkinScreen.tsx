@@ -399,16 +399,16 @@ const styles = StyleSheet.create({
     marginTop: -1,
   },
   buttonNeutral: {
-    backgroundColor: '#F2EFE4',
-    borderColor: '#C7BFA3',
+    backgroundColor: '#EAEDE9',
+    borderColor: '#B7C4BC',
   },
   buttonPrimary: {
-    backgroundColor: '#DFF4E8',
+    backgroundColor: '#DEECE3',
     borderColor: palette.primary,
   },
   buttonSecondary: {
-    backgroundColor: '#EAF3FF',
-    borderColor: '#95B4D7',
+    backgroundColor: '#E5ECE8',
+    borderColor: '#98AEA0',
   },
   buttonText: {
     color: palette.text,
@@ -465,8 +465,8 @@ const styles = StyleSheet.create({
   },
   imageFallback: {
     alignItems: 'center',
-    backgroundColor: '#E7E0CE',
-    borderColor: '#C3B594',
+    backgroundColor: '#DCE3DE',
+    borderColor: '#A2B1A8',
     borderRadius: radius.sm,
     borderWidth: 1,
     height: '100%',
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     width: 98,
   },
   input: {
-    backgroundColor: '#F8F4EA',
+    backgroundColor: palette.stoneSoft,
     borderColor: palette.border,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -536,8 +536,8 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
   },
   linkDownload: {
-    backgroundColor: '#EAF4E2',
-    borderColor: '#9AB585',
+    backgroundColor: '#E1ECE4',
+    borderColor: '#8FAF9B',
   },
   linkRow: {
     flexDirection: 'row',
@@ -548,8 +548,8 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   linkSource: {
-    backgroundColor: '#E9F0FF',
-    borderColor: '#9EB6D8',
+    backgroundColor: '#E7EDE9',
+    borderColor: '#97AFA1',
   },
   loaderText: {
     color: palette.muted,
@@ -571,8 +571,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   resultCard: {
-    backgroundColor: '#F8F4EA',
-    borderColor: '#BFA779',
+    backgroundColor: palette.stoneSoft,
+    borderColor: palette.border,
     borderRadius: radius.md,
     borderWidth: 1,
     flexDirection: 'column',

@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   },
   enchantRow: {
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: palette.stoneSoft,
     borderColor: palette.border,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -278,8 +278,8 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   enchantRowActive: {
-    backgroundColor: '#E8F4FC',
-    borderColor: '#8FC1E3',
+    backgroundColor: '#DFECE3',
+    borderColor: '#92BCA0',
   },
   enchantTitle: {
     color: palette.text,
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   itemChip: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: palette.stone,
     borderColor: palette.border,
     borderRadius: radius.chip,
     borderWidth: 1,
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   itemChipActive: {
-    backgroundColor: '#DFF4E8',
+    backgroundColor: '#DFECE3',
     borderColor: palette.primary,
   },
   itemChipText: {
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   },
   levelButton: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.stoneSoft,
     borderColor: palette.border,
     borderRadius: radius.sm,
     borderWidth: 1,
@@ -358,8 +358,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   planBox: {
-    backgroundColor: '#FFF7ED',
-    borderColor: '#F5D6AF',
+    backgroundColor: '#EDE7DC',
+    borderColor: palette.woodSoft,
     borderRadius: radius.md,
     borderWidth: 1,
     gap: 8,
@@ -372,8 +372,8 @@ const styles = StyleSheet.create({
   },
   presetButton: {
     alignItems: 'center',
-    backgroundColor: '#FFF5E9',
-    borderColor: '#F5D4A5',
+    backgroundColor: '#EDE3D7',
+    borderColor: palette.woodSoft,
     borderRadius: radius.md,
     borderWidth: 1,
     marginTop: spacing.sm,
@@ -391,8 +391,8 @@ const styles = StyleSheet.create({
   },
   stepRow: {
     alignItems: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#F1E4D0',
+    backgroundColor: palette.stoneSoft,
+    borderColor: '#CDD8D1',
     borderRadius: radius.sm,
     borderWidth: 1,
     gap: 4,
