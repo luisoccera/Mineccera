@@ -66,7 +66,6 @@ function MonsterCard({
         <View style={styles.monsterImageWrap}>
           <MonsterImage
             backupImageUrl={entry.backupImageUrl}
-            emoji={entry.emoji}
             imageUrl={entry.imageUrl}
             name={entry.name}
           />
@@ -112,19 +111,16 @@ const toMonsterPlaceholderImage = (name: string) => {
 
 function MonsterImage({
   backupImageUrl,
-  emoji,
   imageUrl,
   name,
 }: {
   backupImageUrl?: string;
-  emoji: string;
   imageUrl: string;
   name: string;
 }) {
   const [index, setIndex] = useState(0);
-  const [showEmojiFallback, setShowEmojiFallback] = useState(false);
   const candidates = useMemo(() => {
-    const list = [imageUrl, backupImageUrl];
+    const list = [imageUrl, backupImageUrl, toMonsterPlaceholderImage(name)];
     const unique: string[] = [];
     const seen = new Set<string>();
     for (const item of list) {
@@ -139,23 +135,12 @@ function MonsterImage({
   }, [backupImageUrl, imageUrl, name]);
 
   const active = candidates[index] || candidates[candidates.length - 1];
-  if (!active || showEmojiFallback) {
-    return (
-      <View style={styles.monsterEmojiFallback}>
-        <Text style={styles.monsterEmoji}>{emoji}</Text>
-      </View>
-    );
-  }
 
   return (
     <Image
       onError={() => {
         const next = index + 1;
-        if (next >= candidates.length) {
-          setShowEmojiFallback(true);
-          return;
-        }
-        setIndex(next);
+        setIndex(next >= candidates.length ? candidates.length - 1 : next);
       }}
       source={{ uri: active }}
       style={styles.monsterImage}
@@ -257,20 +242,6 @@ const styles = StyleSheet.create({
   monsterImage: {
     height: 46,
     width: 46,
-  },
-  monsterEmojiFallback: {
-    alignItems: 'center',
-    backgroundColor: '#D5E2D9',
-    borderColor: '#95A89D',
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    height: 46,
-    justifyContent: 'center',
-    width: 46,
-  },
-  monsterEmoji: {
-    fontSize: 22,
-    lineHeight: 24,
   },
   monsterImageWrap: {
     alignItems: 'center',
