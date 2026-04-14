@@ -61,19 +61,21 @@ const proxifyImage = (url?: string) => {
 };
 
 const realmMembers = [
-  'Lalo',
+  'Cucha',
   'Kike',
   'Raúl',
   'Tete',
   'Ash',
   'Miki',
   'Gallipro',
-  'H tlacuache',
+  'H Tlacuache',
   'Camila',
   'Garzón',
   'Luisoccera',
   'Morado',
 ];
+
+const pinkMembers = new Set(['Ash', 'Tete', 'Camila', 'H Tlacuache']);
 
 export function HomeScreen() {
   const deviceClass = useDeviceClass();
@@ -156,7 +158,7 @@ export function HomeScreen() {
         <Text style={styles.welcomeText}>Miembros del realm:</Text>
         <View style={styles.memberGrid}>
           {realmMembers.map((member) => (
-            <View key={member} style={styles.memberChip}>
+            <View key={member} style={[styles.memberChip, pinkMembers.has(member) ? styles.memberChipPink : styles.memberChipBlue]}>
               <Text style={styles.memberChipText}>{member}</Text>
             </View>
           ))}
@@ -361,12 +363,18 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   memberChip: {
-    backgroundColor: '#E4EEE8',
-    borderColor: '#7FA187',
     borderRadius: radius.chip,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 5,
+  },
+  memberChipBlue: {
+    backgroundColor: '#DEE9FA',
+    borderColor: '#6F93CC',
+  },
+  memberChipPink: {
+    backgroundColor: '#F9DFEE',
+    borderColor: '#D58CB5',
   },
   memberChipText: {
     color: palette.text,
