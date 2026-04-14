@@ -1,14 +1,136 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
 import { monsterCodex, type MonsterStatEntry } from '../data/worldCodex';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
 
+const wikiTitleByMonsterId: Record<string, string> = {
+  blaze: 'Blaze',
+  bogged: 'Bogged',
+  cave_spider: 'Cave Spider',
+  creeper: 'Creeper',
+  drowned: 'Drowned',
+  elder_guardian: 'Elder Guardian',
+  enderman: 'Enderman',
+  endermite: 'Endermite',
+  evoker: 'Evoker',
+  ghast: 'Ghast',
+  guardian: 'Guardian',
+  hoglin: 'Hoglin',
+  husk: 'Husk',
+  magma_cube: 'Magma Cube',
+  phantom: 'Phantom',
+  piglin_brute: 'Piglin Brute',
+  pillager: 'Pillager',
+  ravager: 'Ravager',
+  shulker: 'Shulker',
+  silverfish: 'Silverfish',
+  skeleton: 'Skeleton',
+  slime: 'Slime',
+  spider: 'Spider',
+  stray: 'Stray',
+  vindicator: 'Vindicator',
+  warden: 'Warden',
+  witch: 'Witch',
+  wither_skeleton: 'Wither Skeleton',
+  zombie: 'Zombie',
+};
+
+const normalizeWikiTitle = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, ' ');
+
+const chunk = <T,>(arr: T[], size: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
+};
+
+const proxifyImage = (url?: string) => {
+  const clean = (url || '').trim();
+  if (!clean || clean.startsWith('data:')) {
+    return '';
+  }
+  const normalized = clean.replace(/^https?:\/\//i, '');
+  return `https://images.weserv.nl/?url=${encodeURIComponent(normalized)}&w=128&h=128&fit=inside`;
+};
+
 export function HomeScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
   const wideCards = deviceClass === 'desktop' || deviceClass === 'xl';
+  const [wikiImageById, setWikiImageById] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWikiMonsterImages = async () => {
+      try {
+        const titles = monsterCodex.map((entry) => wikiTitleByMonsterId[entry.id] || entry.name);
+        const titleToImage: Record<string, string> = {};
+
+        for (const titleChunk of chunk(titles, 10)) {
+          const response = await fetch(
+            `https://minecraft.wiki/api.php?action=query&format=json&origin=*&prop=pageimages&piprop=thumbnail&pithumbsize=256&pilimit=max&titles=${encodeURIComponent(
+              titleChunk.join('|'),
+            )}`,
+          );
+          if (!response.ok) {
+            continue;
+          }
+
+          const json = (await response.json()) as {
+            query?: {
+              pages?: Record<
+                string,
+                {
+                  title?: string;
+                  thumbnail?: { source?: string };
+                }
+              >;
+            };
+          };
+
+          const pages = json.query?.pages || {};
+          Object.values(pages).forEach((page) => {
+            if (!page?.title || !page?.thumbnail?.source) {
+              return;
+            }
+            titleToImage[normalizeWikiTitle(page.title)] = page.thumbnail.source;
+          });
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        const byId: Record<string, string> = {};
+        monsterCodex.forEach((entry) => {
+          const title = wikiTitleByMonsterId[entry.id] || entry.name;
+          const wikiImg = titleToImage[normalizeWikiTitle(title)];
+          if (wikiImg) {
+            byId[entry.id] = wikiImg;
+          }
+        });
+        setWikiImageById(byId);
+      } catch {
+        if (!cancelled) {
+          setWikiImageById({});
+        }
+      }
+    };
+
+    loadWikiMonsterImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
@@ -28,6 +150,7 @@ export function HomeScreen() {
               compact={compact}
               entry={entry}
               key={entry.id}
+              wikiImageUrl={wikiImageById[entry.id]}
               wideCards={wideCards}
             />
           ))}
@@ -40,10 +163,12 @@ export function HomeScreen() {
 function MonsterCard({
   compact,
   entry,
+  wikiImageUrl,
   wideCards,
 }: {
   compact: boolean;
   entry: MonsterStatEntry;
+  wikiImageUrl?: string;
   wideCards: boolean;
 }) {
   const rarityStyle =
@@ -65,7 +190,12 @@ function MonsterCard({
     >
       <View style={styles.monsterHeader}>
         <View style={styles.monsterImageWrap}>
-          <MonsterImage backupImageUrl={entry.backupImageUrl} imageUrl={entry.imageUrl} name={entry.name} />
+          <MonsterImage
+            backupImageUrl={entry.backupImageUrl}
+            imageUrl={entry.imageUrl}
+            name={entry.name}
+            wikiImageUrl={wikiImageUrl}
+          />
         </View>
         <View style={styles.monsterHeaderBody}>
           <Text numberOfLines={2} style={styles.monsterName}>
@@ -110,14 +240,24 @@ function MonsterImage({
   backupImageUrl,
   imageUrl,
   name,
+  wikiImageUrl,
 }: {
   backupImageUrl?: string;
   imageUrl: string;
   name: string;
+  wikiImageUrl?: string;
 }) {
   const [index, setIndex] = useState(0);
   const candidates = useMemo(() => {
-    const list = [imageUrl, backupImageUrl, toMonsterPlaceholderImage(name)];
+    const list = [
+      wikiImageUrl,
+      proxifyImage(wikiImageUrl),
+      imageUrl,
+      proxifyImage(imageUrl),
+      backupImageUrl,
+      proxifyImage(backupImageUrl),
+      toMonsterPlaceholderImage(name),
+    ];
     const unique: string[] = [];
     const seen = new Set<string>();
     for (const item of list) {
@@ -129,7 +269,7 @@ function MonsterImage({
       unique.push(clean);
     }
     return unique;
-  }, [backupImageUrl, imageUrl, name]);
+  }, [backupImageUrl, imageUrl, name, wikiImageUrl]);
 
   const active = candidates[index] || candidates[candidates.length - 1];
 
