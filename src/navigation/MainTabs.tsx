@@ -1,5 +1,5 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Text } from 'react-native';
 import { CalculatorScreen } from '../screens/CalculatorScreen';
 import { BuildIdeasScreen } from '../screens/BuildIdeasScreen';
 import { EnchantingScreen } from '../screens/EnchantingScreen';
@@ -33,33 +33,54 @@ export function MainTabs() {
         sceneStyle: { backgroundColor: palette.appBackground },
         tabBarActiveTintColor: palette.primary,
         tabBarInactiveTintColor: palette.muted,
-        tabBarLabelStyle: {
-          fontFamily: font.body,
-          fontSize: compact ? 9 : tablet ? 10 : 11,
-          fontWeight: '700',
-          lineHeight: compact ? 12 : 13,
-          textAlign: 'center',
+        tabBarLabel: ({ focused }) => {
+          const meta = getTabMeta(route.name);
+          return (
+            <Text
+              numberOfLines={2}
+              style={{
+                color: focused ? palette.primary : palette.muted,
+                fontFamily: font.body,
+                fontSize: compact ? 8 : tablet ? 9 : 10,
+                fontWeight: '700',
+                lineHeight: compact ? 10 : 12,
+                marginTop: 1,
+                textAlign: 'center',
+              }}
+            >
+              {meta.label}
+            </Text>
+          );
         },
         tabBarItemStyle: {
           justifyContent: 'center',
-          paddingHorizontal: compact ? 0 : 2,
+          paddingHorizontal: compact ? 1 : 2,
         },
         tabBarStyle: {
           borderTopColor: palette.border,
-          height: compact ? 66 : tablet ? 68 : 72,
-          paddingBottom: compact ? 8 : 9,
+          height: compact ? 74 : tablet ? 76 : 80,
+          paddingBottom: compact ? 9 : 10,
           paddingTop: compact ? 6 : 8,
         },
-        tabBarIcon: ({ color, size }) => {
-          const iconName = getIconName(route.name);
-          const iconSize = compact ? 19 : tablet ? 21 : size;
-          return <MaterialCommunityIcons color={color} name={iconName} size={iconSize} />;
+        tabBarIcon: () => {
+          const meta = getTabMeta(route.name);
+          return (
+            <Text
+              style={{
+                fontSize: compact ? 16 : tablet ? 18 : 19,
+                lineHeight: compact ? 18 : 20,
+                textAlign: 'center',
+              }}
+            >
+              {meta.emoji}
+            </Text>
+          );
         },
       })}
     >
       <Tab.Screen component={HomeScreen} name="Inicio" options={{ tabBarLabel: 'Inicio' }} />
-      <Tab.Screen component={CalculatorScreen} name="Calculadora" options={{ tabBarLabel: 'Calc' }} />
-      <Tab.Screen component={EnchantingScreen} name="Encantamientos" options={{ tabBarLabel: 'Encanta' }} />
+      <Tab.Screen component={CalculatorScreen} name="Calculadora" options={{ tabBarLabel: 'Calculadora' }} />
+      <Tab.Screen component={EnchantingScreen} name="Encantamientos" options={{ tabBarLabel: 'Encantamientos' }} />
       <Tab.Screen component={BuildIdeasScreen} name="Builds" options={{ tabBarLabel: 'Proyectos' }} />
       <Tab.Screen component={SeedMapScreen} name="Seed" options={{ tabBarLabel: 'Seed' }} />
       <Tab.Screen component={SkinScreen} name="Skin" options={{ tabBarLabel: 'Skins' }} />
@@ -67,20 +88,20 @@ export function MainTabs() {
   );
 }
 
-function getIconName(routeName: keyof TabParamList): keyof typeof MaterialCommunityIcons.glyphMap {
+function getTabMeta(routeName: keyof TabParamList): { emoji: string; label: string } {
   switch (routeName) {
     case 'Builds':
-      return 'hammer-wrench';
+      return { emoji: '🏗️', label: 'Proyectos' };
     case 'Calculadora':
-      return 'calculator';
+      return { emoji: '🧮', label: 'Calculadora' };
     case 'Encantamientos':
-      return 'book-open-variant';
+      return { emoji: '✨', label: 'Encantamientos' };
     case 'Seed':
-      return 'map-marker-radius';
+      return { emoji: '🗺️', label: 'Seed' };
     case 'Skin':
-      return 'hanger';
+      return { emoji: '👕', label: 'Skins' };
     case 'Inicio':
     default:
-      return 'home-variant';
+      return { emoji: '⛏️', label: 'Inicio' };
   }
 }
