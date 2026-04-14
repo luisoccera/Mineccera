@@ -14,7 +14,7 @@ export function HomeScreen() {
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
       <SectionCard
         subtitle="Informacion completa dentro de la app: vida, dano, spawn, XP, drops y notas"
-        title="Bestiario De Criaturas"
+        title="Bestiario De Criaturas (Sin Enlaces Externos)"
       >
         <View style={styles.legendRow}>
           <Text style={styles.legendText}>Vida = HP totales | Dano = por golpe/ataque</Text>
