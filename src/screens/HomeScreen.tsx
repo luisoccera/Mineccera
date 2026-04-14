@@ -43,14 +43,6 @@ const normalizeWikiTitle = (value: string) =>
     .toLowerCase()
     .replace(/_/g, ' ');
 
-const normalizeWikiThumb = (url?: string) => {
-  const clean = (url || '').trim();
-  if (!clean) {
-    return '';
-  }
-  return clean.replace(/\/revision\/latest\/scale-to-width-down\/\d+/i, '/revision/latest/scale-to-width-down/640');
-};
-
 const chunk = <T,>(arr: T[], size: number): T[][] => {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) {
@@ -65,7 +57,7 @@ const proxifyImage = (url?: string) => {
     return '';
   }
   const normalized = clean.replace(/^https?:\/\//i, '');
-  return `https://images.weserv.nl/?url=${encodeURIComponent(normalized)}&w=384&h=384&fit=inside`;
+  return `https://images.weserv.nl/?url=${encodeURIComponent(normalized)}&w=128&h=128&fit=inside`;
 };
 
 export function HomeScreen() {
@@ -82,32 +74,9 @@ export function HomeScreen() {
         const titles = monsterCodex.map((entry) => wikiTitleByMonsterId[entry.id] || entry.name);
         const titleToImage: Record<string, string> = {};
 
-        // 1) Prefer REST summary thumbs: usually returns the canonical mob render.
-        for (const title of titles) {
-          const response = await fetch(
-            `https://minecraft.wiki/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/\s+/g, '_'))}`,
-          );
-          if (!response.ok) {
-            continue;
-          }
-          const json = (await response.json()) as {
-            originalimage?: { source?: string };
-            thumbnail?: { source?: string };
-            title?: string;
-          };
-
-          const source =
-            normalizeWikiThumb(json.thumbnail?.source) || normalizeWikiThumb(json.originalimage?.source) || '';
-          if (!source) {
-            continue;
-          }
-          titleToImage[normalizeWikiTitle(json.title || title)] = source;
-        }
-
-        // 2) Fallback to MediaWiki query for any title not returned by summary.
         for (const titleChunk of chunk(titles, 10)) {
           const response = await fetch(
-            `https://minecraft.wiki/api.php?action=query&format=json&origin=*&prop=pageimages&piprop=thumbnail&pithumbsize=512&pilimit=max&titles=${encodeURIComponent(
+            `https://minecraft.wiki/api.php?action=query&format=json&origin=*&prop=pageimages&piprop=thumbnail&pithumbsize=256&pilimit=max&titles=${encodeURIComponent(
               titleChunk.join('|'),
             )}`,
           );
@@ -132,11 +101,7 @@ export function HomeScreen() {
             if (!page?.title || !page?.thumbnail?.source) {
               return;
             }
-            const key = normalizeWikiTitle(page.title);
-            if (titleToImage[key]) {
-              return;
-            }
-            titleToImage[key] = normalizeWikiThumb(page.thumbnail.source);
+            titleToImage[normalizeWikiTitle(page.title)] = page.thumbnail.source;
           });
         }
 
@@ -285,7 +250,7 @@ function MonsterImage({
   const [index, setIndex] = useState(0);
   const candidates = useMemo(() => {
     const list = [
-      normalizeWikiThumb(wikiImageUrl),
+      wikiImageUrl,
       proxifyImage(wikiImageUrl),
       imageUrl,
       proxifyImage(imageUrl),
@@ -314,7 +279,6 @@ function MonsterImage({
         const next = index + 1;
         setIndex(next >= candidates.length ? candidates.length - 1 : next);
       }}
-      resizeMode="cover"
       source={{ uri: active }}
       style={styles.monsterImage}
     />
@@ -413,20 +377,18 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   monsterImage: {
-    height: '100%',
-    width: '100%',
+    height: 46,
+    width: 46,
   },
   monsterImageWrap: {
     alignItems: 'center',
-    backgroundColor: '#D3DDD7',
-    borderColor: '#8FA096',
+    backgroundColor: '#DFE6E1',
+    borderColor: '#A3B3A8',
     borderRadius: radius.sm,
     borderWidth: 1,
-    height: 96,
+    height: 58,
     justifyContent: 'center',
-    overflow: 'hidden',
-    padding: 4,
-    width: 96,
+    width: 58,
   },
   monsterMeta: {
     color: palette.secondary,
