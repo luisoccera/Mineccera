@@ -1,5 +1,6 @@
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { CommonGuidesPanel } from '../components/CommonGuidesPanel';
+import { FarmSearchPanel } from '../components/FarmSearchPanel';
 import { SectionCard } from '../components/SectionCard';
 import { useDeviceClass } from '../responsive';
 import { palette, spacing } from '../theme';
@@ -17,8 +18,15 @@ export function BuildIdeasScreen() {
         <CommonGuidesPanel />
       </SectionCard>
 
+      <SectionCard
+        subtitle="Buscador detallado de granjas con fuente principal en Minecraft Wiki y guias tecnicas confiables"
+        title="Buscador De Granjas"
+      >
+        <FarmSearchPanel />
+      </SectionCard>
+
       <Text style={styles.legalText}>
-        Guia curada para evitar resultados aleatorios o poco utiles.
+        Fuentes principales: Minecraft Wiki + guias tecnicas verificadas por granja.
       </Text>
     </ScrollView>
   );
