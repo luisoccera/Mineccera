@@ -81,6 +81,28 @@ export const itemLabels: Record<ItemCategory, string> = {
   turtle_shell: 'Caparazon',
 };
 
+export const itemIconByCategory: Record<ItemCategory, string> = {
+  axe: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_axe.png',
+  boots: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_boots.png',
+  bow: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/bow.png',
+  brush: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/brush.png',
+  chestplate: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_chestplate.png',
+  crossbow: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/crossbow_standby.png',
+  elytra: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/elytra.png',
+  fishing_rod: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/fishing_rod.png',
+  helmet: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_helmet.png',
+  hoe: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_hoe.png',
+  leggings: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_leggings.png',
+  mace: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/mace.png',
+  pickaxe: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_pickaxe.png',
+  shears: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/shears.png',
+  shield: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/shield.png',
+  shovel: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_shovel.png',
+  sword: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/diamond_sword.png',
+  trident: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/trident.png',
+  turtle_shell: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/turtle_helmet.png',
+};
+
 export const enchantments: EnchantmentDefinition[] = [
   { categories: allGear, id: 'mending', maxLevel: 1, multiplier: 4, name: 'Mending' },
   { categories: allGear, id: 'unbreaking', maxLevel: 3, multiplier: 2, name: 'Unbreaking' },

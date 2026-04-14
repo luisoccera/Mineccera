@@ -4,10 +4,13 @@ import { SectionCard } from '../components/SectionCard';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
 import {
+  calculateBaSingSeProject,
   calculateDiamondNeed,
   calculateStructureBlocks,
+  calculateTheWallProject,
   DiamondPiece,
   diamondCostByPiece,
+  MegaProjectPreset,
   StructureMode,
 } from '../utils/calculators';
 
@@ -30,6 +33,15 @@ const pieces: Array<{ id: DiamondPiece; label: string }> = [
 ];
 
 const allPieces = pieces.map((piece) => piece.id);
+const megaPresets: Array<{ id: MegaProjectPreset; label: string }> = [
+  { id: 'ba_sing_se', label: 'Ba Sing Se (radio)' },
+  { id: 'the_wall', label: 'Muralla Norte (largo)' },
+];
+
+const toPositiveNumber = (value: string, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
 
 export function CalculatorScreen() {
   const deviceClass = useDeviceClass();
@@ -49,6 +61,23 @@ export function CalculatorScreen() {
     shovel: true,
     sword: true,
   });
+  const [megaPreset, setMegaPreset] = useState<MegaProjectPreset>('ba_sing_se');
+  const [blocksPerHour, setBlocksPerHour] = useState('2400');
+  const [megaRadius, setMegaRadius] = useState('900');
+  const [megaLength, setMegaLength] = useState('2800');
+  const [megaWallHeight, setMegaWallHeight] = useState('92');
+  const [megaWallThickness, setMegaWallThickness] = useState('14');
+  const [megaTowerCount, setMegaTowerCount] = useState('28');
+  const [megaTowerRadius, setMegaTowerRadius] = useState('7');
+  const [megaTowerSpacing, setMegaTowerSpacing] = useState('320');
+  const [megaTowerSize, setMegaTowerSize] = useState('28');
+  const [megaTowerHeight, setMegaTowerHeight] = useState('52');
+  const [megaGateCount, setMegaGateCount] = useState('4');
+  const [megaGateWidth, setMegaGateWidth] = useState('24');
+  const [megaMoatWidth, setMegaMoatWidth] = useState('12');
+  const [megaRingRoads, setMegaRingRoads] = useState('3');
+  const [megaButtressSpacing, setMegaButtressSpacing] = useState('96');
+  const [megaButtressDepth, setMegaButtressDepth] = useState('20');
 
   const structure = useMemo(
     () => calculateStructureBlocks(Number(length), Number(width), Number(height), mode),
@@ -60,6 +89,54 @@ export function CalculatorScreen() {
     [selectedPieces],
   );
   const diamondTotal = useMemo(() => calculateDiamondNeed(selectedPieceIds), [selectedPieceIds]);
+  const megaProject = useMemo(() => {
+    const bph = toPositiveNumber(blocksPerHour, 2400);
+    if (megaPreset === 'ba_sing_se') {
+      return calculateBaSingSeProject({
+        blocksPerHour: bph,
+        gateCount: toPositiveNumber(megaGateCount, 4),
+        gateWidth: toPositiveNumber(megaGateWidth, 24),
+        moatWidth: toPositiveNumber(megaMoatWidth, 12),
+        radius: toPositiveNumber(megaRadius, 900),
+        ringRoads: toPositiveNumber(megaRingRoads, 3),
+        towerCount: toPositiveNumber(megaTowerCount, 28),
+        towerRadius: toPositiveNumber(megaTowerRadius, 7),
+        wallHeight: toPositiveNumber(megaWallHeight, 92),
+        wallThickness: toPositiveNumber(megaWallThickness, 14),
+      });
+    }
+    return calculateTheWallProject({
+      blocksPerHour: bph,
+      buttressDepth: toPositiveNumber(megaButtressDepth, 20),
+      buttressSpacing: toPositiveNumber(megaButtressSpacing, 96),
+      gateCount: toPositiveNumber(megaGateCount, 3),
+      gateWidth: toPositiveNumber(megaGateWidth, 24),
+      length: toPositiveNumber(megaLength, 2800),
+      towerHeight: toPositiveNumber(megaTowerHeight, 52),
+      towerSize: toPositiveNumber(megaTowerSize, 28),
+      towerSpacing: toPositiveNumber(megaTowerSpacing, 320),
+      wallHeight: toPositiveNumber(megaWallHeight, 180),
+      wallThickness: toPositiveNumber(megaWallThickness, 26),
+    });
+  }, [
+    blocksPerHour,
+    megaButtressDepth,
+    megaButtressSpacing,
+    megaGateCount,
+    megaGateWidth,
+    megaLength,
+    megaMoatWidth,
+    megaPreset,
+    megaRadius,
+    megaRingRoads,
+    megaTowerCount,
+    megaTowerHeight,
+    megaTowerRadius,
+    megaTowerSize,
+    megaTowerSpacing,
+    megaWallHeight,
+    megaWallThickness,
+  ]);
 
   const togglePiece = (piece: DiamondPiece) =>
     setSelectedPieces((previous) => ({
@@ -123,6 +200,140 @@ export function CalculatorScreen() {
           <Text style={styles.resultLine}>Area de piso: {structure.floorArea} bloques</Text>
           <Text style={styles.resultLine}>Stacks: {structure.stacksAndRemainder}</Text>
           <Text style={styles.resultLine}>Shulkers aprox: {structure.shulkersNeeded}</Text>
+        </View>
+      </SectionCard>
+
+      <SectionCard
+        subtitle="Modo mega-pro: calcula proyectos gigantes por radio/largo, torres, puertas, foso, contrafuertes y tiempo de construccion"
+        title="Calculadora De Mega Proyectos"
+      >
+        <View style={styles.modes}>
+          {megaPresets.map((preset) => {
+            const active = preset.id === megaPreset;
+            return (
+              <Pressable
+                key={preset.id}
+                onPress={() => setMegaPreset(preset.id)}
+                style={[styles.modeChip, active && styles.modeChipActive]}
+              >
+                <Text style={[styles.modeChipText, active && styles.modeChipTextActive]}>{preset.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={[styles.row, compact && styles.rowCompact]}>
+          {megaPreset === 'ba_sing_se' ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Radio ciudad</Text>
+              <TextInput keyboardType="number-pad" onChangeText={setMegaRadius} style={[styles.input, compact && styles.inputCompact]} value={megaRadius} />
+            </View>
+          ) : (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Largo muralla</Text>
+              <TextInput keyboardType="number-pad" onChangeText={setMegaLength} style={[styles.input, compact && styles.inputCompact]} value={megaLength} />
+            </View>
+          )}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Alto muralla</Text>
+            <TextInput keyboardType="number-pad" onChangeText={setMegaWallHeight} style={[styles.input, compact && styles.inputCompact]} value={megaWallHeight} />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Grosor muralla</Text>
+            <TextInput keyboardType="number-pad" onChangeText={setMegaWallThickness} style={[styles.input, compact && styles.inputCompact]} value={megaWallThickness} />
+          </View>
+        </View>
+
+        <View style={[styles.row, compact && styles.rowCompact]}>
+          {megaPreset === 'ba_sing_se' ? (
+            <>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Torres</Text>
+                <TextInput keyboardType="number-pad" onChangeText={setMegaTowerCount} style={[styles.input, compact && styles.inputCompact]} value={megaTowerCount} />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Radio torre</Text>
+                <TextInput keyboardType="number-pad" onChangeText={setMegaTowerRadius} style={[styles.input, compact && styles.inputCompact]} value={megaTowerRadius} />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Foso ancho</Text>
+                <TextInput keyboardType="number-pad" onChangeText={setMegaMoatWidth} style={[styles.input, compact && styles.inputCompact]} value={megaMoatWidth} />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Anillos internos</Text>
+                <TextInput keyboardType="number-pad" onChangeText={setMegaRingRoads} style={[styles.input, compact && styles.inputCompact]} value={megaRingRoads} />
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Espaciado torres</Text>
+                <TextInput keyboardType="number-pad" onChangeText={setMegaTowerSpacing} style={[styles.input, compact && styles.inputCompact]} value={megaTowerSpacing} />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Tamano torre</Text>
+                <TextInput keyboardType="number-pad" onChangeText={setMegaTowerSize} style={[styles.input, compact && styles.inputCompact]} value={megaTowerSize} />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Alto torre</Text>
+                <TextInput keyboardType="number-pad" onChangeText={setMegaTowerHeight} style={[styles.input, compact && styles.inputCompact]} value={megaTowerHeight} />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Espaciado contrafuerte</Text>
+                <TextInput keyboardType="number-pad" onChangeText={setMegaButtressSpacing} style={[styles.input, compact && styles.inputCompact]} value={megaButtressSpacing} />
+              </View>
+            </>
+          )}
+        </View>
+
+        <View style={[styles.row, compact && styles.rowCompact]}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Puertas</Text>
+            <TextInput keyboardType="number-pad" onChangeText={setMegaGateCount} style={[styles.input, compact && styles.inputCompact]} value={megaGateCount} />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Ancho puerta</Text>
+            <TextInput keyboardType="number-pad" onChangeText={setMegaGateWidth} style={[styles.input, compact && styles.inputCompact]} value={megaGateWidth} />
+          </View>
+          {megaPreset === 'the_wall' ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Prof. contrafuerte</Text>
+              <TextInput keyboardType="number-pad" onChangeText={setMegaButtressDepth} style={[styles.input, compact && styles.inputCompact]} value={megaButtressDepth} />
+            </View>
+          ) : null}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Bloques por hora</Text>
+            <TextInput keyboardType="number-pad" onChangeText={setBlocksPerHour} style={[styles.input, compact && styles.inputCompact]} value={blocksPerHour} />
+          </View>
+        </View>
+
+        <View style={styles.resultBox}>
+          <Text style={styles.resultLine}>{megaProject.name}</Text>
+          <Text style={styles.resultLine}>Bloques totales: {megaProject.totalBlocks}</Text>
+          <Text style={styles.resultLine}>Stacks: {megaProject.stacksAndRemainder}</Text>
+          <Text style={styles.resultLine}>Shulkers aprox: {megaProject.shulkersNeeded}</Text>
+          <Text style={styles.resultLine}>Chunks de cobertura: {megaProject.chunksAcross}</Text>
+          <Text style={styles.resultLine}>
+            Tiempo estimado: {megaProject.estimatedHours} h (aprox {megaProject.estimatedDays} dias de 6h)
+          </Text>
+        </View>
+
+        <View style={styles.resultBox}>
+          <Text style={styles.resultLine}>Desglose principal</Text>
+          {megaProject.breakdown.map((entry) => (
+            <Text key={entry.label} style={styles.resultHint}>
+              • {entry.label}: {entry.value.toLocaleString('es-MX')} bloques
+            </Text>
+          ))}
+        </View>
+
+        <View style={styles.resultBox}>
+          <Text style={styles.resultLine}>Materiales recomendados</Text>
+          {megaProject.materials.map((material) => (
+            <Text key={material.label} style={styles.resultHint}>
+              • {material.label}: {material.blocks.toLocaleString('es-MX')} ({material.stacks})
+            </Text>
+          ))}
         </View>
       </SectionCard>
 

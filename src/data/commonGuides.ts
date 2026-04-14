@@ -1,4 +1,5 @@
 export interface CommonBuild {
+  backupImageUrl?: string;
   id: string;
   imageCredit: string;
   imageUrl: string;
@@ -9,6 +10,7 @@ export interface CommonBuild {
 }
 
 export interface EnchantingRecipe {
+  backupImageUrl?: string;
   id: string;
   imageCredit: string;
   imageUrl: string;
@@ -19,6 +21,7 @@ export interface EnchantingRecipe {
 }
 
 export interface EssentialFarm {
+  backupImageUrl?: string;
   id: string;
   imageCredit: string;
   imageUrl: string;
@@ -37,6 +40,7 @@ export interface GuideReference {
 export const commonBuilds: CommonBuild[] = [
   {
     id: 'starter-house',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/oak_planks.png',
     imageCredit: 'PlanetMinecraft - Starter House (LeonisBuilds)',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2026/438/19522810_l.jpg',
     materials: ['Madera', 'Piedra', 'Vidrio', 'Cama', 'Cofres'],
@@ -51,6 +55,7 @@ export const commonBuilds: CommonBuild[] = [
   },
   {
     id: 'storage-room',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/chest_front.png',
     imageCredit: 'PlanetMinecraft - Storage Room Tutorial (Gragbuilds)',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2024/612/18183737_l.jpg',
     materials: ['Cofres', 'Tolvas', 'Item frames', 'Tablones'],
@@ -68,6 +73,7 @@ export const commonBuilds: CommonBuild[] = [
   },
   {
     id: 'enchant-room',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/enchanting_table_side.png',
     imageCredit: 'PlanetMinecraft - Hidden Enchanting Setup',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2020/269/12707609_l.jpg',
     materials: ['Mesa de encantamientos', '15 libreros', 'Yunque'],
@@ -85,6 +91,7 @@ export const commonBuilds: CommonBuild[] = [
   },
   {
     id: 'villager-hall',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/lectern_front.png',
     imageCredit: 'PlanetMinecraft - Villager Trading Hall',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2020/684/12752706_l.jpg',
     materials: ['Camas', 'Atriles', 'Vagonetas', 'Bloques de encierro'],
@@ -99,6 +106,7 @@ export const commonBuilds: CommonBuild[] = [
   },
   {
     id: 'nether-hub',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/obsidian.png',
     imageCredit: 'PlanetMinecraft - Nether Hub (nope_cat)',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2022/333/15880626_l.jpg',
     materials: ['Obsidiana', 'Hielo', 'Losas', 'Antorchas'],
@@ -114,6 +122,7 @@ export const commonBuilds: CommonBuild[] = [
   },
   {
     id: 'super-smelter',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/blast_furnace_front.png',
     imageCredit: 'PlanetMinecraft - Super Smelter all Versions',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2025/120/19259436_l.jpg',
     materials: ['Hornos', 'Tolvas', 'Cofres', 'Combustible'],
@@ -134,6 +143,7 @@ export const commonBuilds: CommonBuild[] = [
 export const enchantingRecipes: EnchantingRecipe[] = [
   {
     id: 'enchanting-table',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/enchanting_table_top.png',
     imageCredit: 'DigMinecraft - receta de crafteo',
     imageUrl: 'https://www.digminecraft.com/basic_recipes/images/make_enchantment_table.png',
     recipe: '4 obsidiana + 2 diamantes + 1 libro',
@@ -148,6 +158,7 @@ export const enchantingRecipes: EnchantingRecipe[] = [
   },
   {
     id: 'anvil',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/anvil_top.png',
     imageCredit: 'DigMinecraft - receta de crafteo',
     imageUrl: 'https://www.digminecraft.com/decoration_recipes/images/make_anvil.png',
     recipe: '3 bloques de hierro + 4 lingotes de hierro',
@@ -162,6 +173,7 @@ export const enchantingRecipes: EnchantingRecipe[] = [
   },
   {
     id: 'bookshelf',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/bookshelf.png',
     imageCredit: 'DigMinecraft - receta de crafteo',
     imageUrl: 'https://www.digminecraft.com/block_recipes/images/make_bookshelf.png',
     recipe: '6 tablones + 3 libros',
@@ -176,6 +188,7 @@ export const enchantingRecipes: EnchantingRecipe[] = [
   },
   {
     id: 'grindstone',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/grindstone_side.png',
     imageCredit: 'DigMinecraft - receta de crafteo',
     imageUrl: 'https://www.digminecraft.com/basic_recipes/images/make_grindstone.png',
     recipe: '2 palos + 2 tablones + 1 losa de piedra',
@@ -193,6 +206,7 @@ export const enchantingRecipes: EnchantingRecipe[] = [
   },
   {
     id: 'lectern',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/lectern_front.png',
     imageCredit: 'DigMinecraft - receta de crafteo',
     imageUrl: 'https://www.digminecraft.com/basic_recipes/images/make_lectern.png',
     recipe: '1 librero + 4 losas de madera',
@@ -210,6 +224,7 @@ export const enchantingRecipes: EnchantingRecipe[] = [
 export const essentialFarms: EssentialFarm[] = [
   {
     id: 'iron-farm',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/iron_ingot.png',
     imageCredit: 'PlanetMinecraft - Extremely Efficient Iron Farm',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2025/439/19326770-image_l.jpg',
     keyMaterials: ['3 aldeanos', '3 camas', '1 zombie', 'Tolvas + cofres'],
@@ -224,6 +239,7 @@ export const essentialFarms: EssentialFarm[] = [
   },
   {
     id: 'food-farm',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/wheat.png',
     imageCredit: 'PlanetMinecraft - Big Carrot/Wheat/Potato Farm',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2020/837/12651006-front_l.jpg',
     keyMaterials: ['Tierra cultivada', 'Agua', 'Semillas', 'Aldeano granjero (opcional)'],
@@ -241,6 +257,7 @@ export const essentialFarms: EssentialFarm[] = [
   },
   {
     id: 'sugar-cane-farm',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/sugar_cane.png',
     imageCredit: 'PlanetMinecraft - Efficient Sugar Cane Farm',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2024/038/17545524-image_l.jpg',
     keyMaterials: ['Observers', 'Pistones', 'Redstone', 'Agua'],
@@ -259,6 +276,7 @@ export const essentialFarms: EssentialFarm[] = [
   },
   {
     id: 'bamboo-farm',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/bamboo.png',
     imageCredit: 'PlanetMinecraft - Fastest Bamboo Farm',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2022/235/16369955_l.jpg',
     keyMaterials: ['Observers', 'Pistones', 'Tolvas', 'Cofres'],
@@ -274,6 +292,7 @@ export const essentialFarms: EssentialFarm[] = [
   },
   {
     id: 'mob-farm',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/block/spawner.png',
     imageCredit: 'PlanetMinecraft - Mobs Farm',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2025/560/19097777_l.jpg',
     keyMaterials: ['Plataformas oscuras', 'Trapdoors', 'Agua', 'Tolvas'],
@@ -288,6 +307,7 @@ export const essentialFarms: EssentialFarm[] = [
   },
   {
     id: 'creeper-farm',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/gunpowder.png',
     imageCredit: 'PlanetMinecraft - Highly Efficient Creeper Farm',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2025/942/18788770_l.jpg',
     keyMaterials: ['Trapdoors', 'Gatos', 'Tolvas + cofres'],
@@ -305,6 +325,7 @@ export const essentialFarms: EssentialFarm[] = [
   },
   {
     id: 'gold-farm',
+    backupImageUrl: 'https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/gold_ingot.png',
     imageCredit: 'PlanetMinecraft - Ilmango Gold Farm',
     imageUrl: 'https://static.planetminecraft.com/files/image/minecraft/project/2022/420/15746948_l.jpg',
     keyMaterials: ['Portales', 'Huevo de tortuga o señuelo', 'Tolvas'],

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import * as Linking from 'expo-linking';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useDeviceClass } from '../responsive';
@@ -26,7 +26,7 @@ export function CommonGuidesPanel({ showAll = true }: CommonGuidesPanelProps) {
             <View key={item.id} style={styles.itemCard}>
               <View style={[styles.itemLayout, compact && styles.itemLayoutCompact]}>
                 <View style={[styles.mediaColumn, compact && styles.mediaColumnCompact]}>
-                  <GuidePreview title={item.name} uri={item.imageUrl} />
+                  <GuidePreview backupUri={item.backupImageUrl} title={item.name} uri={item.imageUrl} />
                   <Text style={styles.imageCredit}>Imagen: {item.imageCredit}</Text>
                 </View>
                 <View style={styles.contentColumn}>
@@ -58,7 +58,7 @@ export function CommonGuidesPanel({ showAll = true }: CommonGuidesPanelProps) {
             <View key={item.id} style={styles.itemCard}>
               <View style={[styles.itemLayout, compact && styles.itemLayoutCompact]}>
                 <View style={[styles.mediaColumn, compact && styles.mediaColumnCompact]}>
-                  <GuidePreview title={item.title} uri={item.imageUrl} />
+                  <GuidePreview backupUri={item.backupImageUrl} title={item.title} uri={item.imageUrl} />
                   <Text style={styles.imageCredit}>Imagen: {item.imageCredit}</Text>
                 </View>
                 <View style={styles.contentColumn}>
@@ -92,7 +92,7 @@ export function CommonGuidesPanel({ showAll = true }: CommonGuidesPanelProps) {
             <View key={item.id} style={styles.itemCard}>
               <View style={[styles.itemLayout, compact && styles.itemLayoutCompact]}>
                 <View style={[styles.mediaColumn, compact && styles.mediaColumnCompact]}>
-                  <GuidePreview title={item.name} uri={item.imageUrl} />
+                  <GuidePreview backupUri={item.backupImageUrl} title={item.name} uri={item.imageUrl} />
                   <Text style={styles.imageCredit}>Imagen: {item.imageCredit}</Text>
                 </View>
                 <View style={styles.contentColumn}>
@@ -121,19 +121,64 @@ export function CommonGuidesPanel({ showAll = true }: CommonGuidesPanelProps) {
   );
 }
 
-function GuidePreview({ title, uri }: { title: string; uri: string }) {
-  const [hasError, setHasError] = useState(false);
+const proxifyImage = (url?: string) => {
+  const clean = (url || '').trim();
+  if (!clean || clean.startsWith('data:')) {
+    return '';
+  }
+  const normalized = clean.replace(/^https?:\/\//i, '');
+  return `https://images.weserv.nl/?url=${encodeURIComponent(normalized)}&w=900&h=700&fit=inside`;
+};
 
-  if (hasError) {
+const getGuideEmoji = (title: string) => {
+  const normalized = title.toLowerCase();
+  if (normalized.includes('casa') || normalized.includes('home')) return '🏠';
+  if (normalized.includes('almacen')) return '📦';
+  if (normalized.includes('encant')) return '✨';
+  if (normalized.includes('aldean') || normalized.includes('trading')) return '🧑‍🌾';
+  if (normalized.includes('nether')) return '🔥';
+  if (normalized.includes('granja') || normalized.includes('farm')) return '🌾';
+  if (normalized.includes('smelter') || normalized.includes('fund')) return '🏭';
+  if (normalized.includes('creeper')) return '💥';
+  return '🧱';
+};
+
+function GuidePreview({ backupUri, title, uri }: { backupUri?: string; title: string; uri: string }) {
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const candidates = useMemo(() => {
+    const list = [uri, proxifyImage(uri), backupUri, proxifyImage(backupUri)];
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const candidate of list) {
+      const clean = (candidate || '').trim();
+      if (!clean || seen.has(clean)) {
+        continue;
+      }
+      seen.add(clean);
+      unique.push(clean);
+    }
+    return unique;
+  }, [backupUri, uri]);
+
+  const activeUri = candidates[sourceIndex];
+
+  if (!activeUri) {
     return (
       <View style={styles.previewFallback}>
+        <Text style={styles.previewEmoji}>{getGuideEmoji(title)}</Text>
         <Text style={styles.previewFallbackTitle}>{title}</Text>
-        <Text style={styles.previewFallbackText}>No se pudo cargar imagen externa. Revisa las fuentes abajo.</Text>
+        <Text style={styles.previewFallbackText}>Plano visual de referencia</Text>
       </View>
     );
   }
 
-  return <Image onError={() => setHasError(true)} source={{ uri }} style={styles.previewImage} />;
+  return (
+    <Image
+      onError={() => setSourceIndex((value) => value + 1)}
+      source={{ uri: activeUri }}
+      style={styles.previewImage}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
@@ -219,9 +264,13 @@ const styles = StyleSheet.create({
   },
   previewFallbackText: {
     color: palette.muted,
-    fontSize: 10,
+    fontSize: 11,
     lineHeight: 14,
     textAlign: 'center',
+  },
+  previewEmoji: {
+    fontSize: 34,
+    lineHeight: 40,
   },
   previewFallbackTitle: {
     color: palette.text,

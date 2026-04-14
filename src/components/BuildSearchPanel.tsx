@@ -1,9 +1,18 @@
 import * as Linking from 'expo-linking';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { findTemplate, searchBuildIdeas, WebBuildResult } from '../data/buildGuides';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
+
+const proxifyImage = (url?: string) => {
+  const clean = (url || '').trim();
+  if (!clean || clean.startsWith('data:')) {
+    return '';
+  }
+  const normalized = clean.replace(/^https?:\/\//i, '');
+  return `https://images.weserv.nl/?url=${encodeURIComponent(normalized)}&w=900&h=700&fit=inside`;
+};
 
 export function BuildSearchPanel() {
   const deviceClass = useDeviceClass();
@@ -16,6 +25,7 @@ export function BuildSearchPanel() {
   const [error, setError] = useState('');
   const [results, setResults] = useState<WebBuildResult[]>([]);
   const [selectedResultUrl, setSelectedResultUrl] = useState('');
+  const [previewSourceIndex, setPreviewSourceIndex] = useState(0);
 
   const selectedResult = useMemo(
     () => results.find((result) => result.url === selectedResultUrl) || results[0],
@@ -39,6 +49,24 @@ export function BuildSearchPanel() {
     }
     return results.find((result) => result.imageUrl)?.imageUrl;
   }, [hasSearched, results, searchedQuery, selectedResult]);
+  const previewCandidates = useMemo(() => {
+    const list = [featuredImage, proxifyImage(featuredImage)];
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const candidate of list) {
+      const clean = (candidate || '').trim();
+      if (!clean || seen.has(clean)) {
+        continue;
+      }
+      seen.add(clean);
+      unique.push(clean);
+    }
+    return unique;
+  }, [featuredImage]);
+
+  useEffect(() => {
+    setPreviewSourceIndex(0);
+  }, [featuredImage]);
 
   const runSearch = async () => {
     const cleanQuery = query.trim();
@@ -100,8 +128,12 @@ export function BuildSearchPanel() {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, compact && styles.sectionTitleCompact]}>Imagen sugerida</Text>
-        {featuredImage ? (
-          <Image source={{ uri: featuredImage }} style={[styles.previewImage, compact && styles.previewImageCompact]} />
+        {previewCandidates[previewSourceIndex] ? (
+          <Image
+            onError={() => setPreviewSourceIndex((value) => value + 1)}
+            source={{ uri: previewCandidates[previewSourceIndex] }}
+            style={[styles.previewImage, compact && styles.previewImageCompact]}
+          />
         ) : hasSearched ? (
           <Text style={styles.emptyText}>
             No se encontro una imagen fiable para esta busqueda. Revisa las fuentes abajo.
