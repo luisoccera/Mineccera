@@ -1,25 +1,24 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { CommonGuidesPanel } from '../components/CommonGuidesPanel';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
-import { biomeCodex, creatureCodex, floraCodex, type CodexEntry } from '../data/worldCodex';
+import { monsterCodex, type MonsterStatEntry } from '../data/worldCodex';
 import { useDeviceClass } from '../responsive';
 import { font, palette, radius, spacing } from '../theme';
 
 const sources = [
-  { label: 'Minecraft Diamond Ore (Wiki)', url: 'https://minecraft.wiki/w/Diamond_Ore' },
-  { label: 'Anvil Mechanics', url: 'https://minecraft.wiki/w/Anvil_mechanics' },
-  { label: 'Chunkbase Seed Map', url: 'https://www.chunkbase.com/apps/seed-map' },
-  { label: 'Minecraft Wiki: Biome', url: 'https://minecraft.wiki/w/Biome' },
-  { label: 'Minecraft Wiki: Wolf', url: 'https://minecraft.wiki/w/Wolf' },
-  { label: 'Minecraft Wiki: Cat', url: 'https://minecraft.wiki/w/Cat' },
+  { label: 'Minecraft Wiki: Hostile mobs', url: 'https://minecraft.wiki/w/Monster' },
   { label: 'Minecraft Wiki: Zombie', url: 'https://minecraft.wiki/w/Zombie' },
+  { label: 'Minecraft Wiki: Creeper', url: 'https://minecraft.wiki/w/Creeper' },
+  { label: 'Minecraft Wiki: Enderman', url: 'https://minecraft.wiki/w/Enderman' },
+  { label: 'Minecraft Wiki: Witch', url: 'https://minecraft.wiki/w/Witch' },
+  { label: 'Minecraft Wiki: Slime', url: 'https://minecraft.wiki/w/Slime' },
 ];
 
 export function HomeScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
+  const wideCards = deviceClass === 'desktop' || deviceClass === 'xl';
 
   return (
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
@@ -34,44 +33,32 @@ export function HomeScreen() {
           welcome to the final... al realm de Luisoccera 8)
         </Text>
         <Text style={[styles.heroSubtitle, compact && styles.heroSubtitleCompact]}>
-          Resuelve dudas rapido: diamantes, capas, encantamientos, seeds y estructuras.
+          Bestiario rapido con stats reales para combate, farmeo y rutas seguras.
         </Text>
       </LinearGradient>
 
       <SectionCard
-        subtitle="Solo contenido clave: construcciones comunes, recetas de encantamiento y granjas importantes"
-        title="Guia Base Del Juego"
+        subtitle="Desglose de monstruos con imagen, vida, dano, spawn, XP y drops"
+        title="Bestiario De Monstruos"
       >
-        <CommonGuidesPanel showAll={false} />
-      </SectionCard>
-
-      <SectionCard
-        subtitle="Biomas, criaturas y flora con rareza para que sepas que farmear y donde explorar"
-        title="Codex De Mundo"
-      >
-        <Text style={styles.codexTitle}>Biomas clave</Text>
-        <View style={[styles.codexGrid, compact && styles.codexGridCompact]}>
-          {biomeCodex.map((entry) => (
-            <CodexCard compact={compact} entry={entry} key={entry.id} />
-          ))}
+        <View style={styles.legendRow}>
+          <Text style={styles.legendText}>Vida = HP totales | Dano = dano por golpe/ataque</Text>
+          <Text style={styles.legendText}>XP = experiencia al matar | Drops = loot principal</Text>
         </View>
 
-        <Text style={styles.codexTitle}>Criaturas y mobs</Text>
-        <View style={[styles.codexGrid, compact && styles.codexGridCompact]}>
-          {creatureCodex.map((entry) => (
-            <CodexCard compact={compact} entry={entry} key={entry.id} />
-          ))}
-        </View>
-
-        <Text style={styles.codexTitle}>Plantas y especies</Text>
-        <View style={[styles.codexGrid, compact && styles.codexGridCompact]}>
-          {floraCodex.map((entry) => (
-            <CodexCard compact={compact} entry={entry} key={entry.id} />
+        <View style={[styles.monsterGrid, compact && styles.monsterGridCompact]}>
+          {monsterCodex.map((entry) => (
+            <MonsterCard
+              compact={compact}
+              entry={entry}
+              key={entry.id}
+              wideCards={wideCards}
+            />
           ))}
         </View>
       </SectionCard>
 
-      <SectionCard subtitle="Referencias base del proyecto." title="Fuentes usadas">
+      <SectionCard subtitle="Referencias base del bestiario." title="Fuentes usadas">
         <View style={styles.sourceList}>
           {sources.map((source) => (
             <Pressable key={source.url} onPress={() => Linking.openURL(source.url)} style={styles.sourceButton}>
@@ -84,7 +71,15 @@ export function HomeScreen() {
   );
 }
 
-function CodexCard({ compact, entry }: { compact: boolean; entry: CodexEntry }) {
+function MonsterCard({
+  compact,
+  entry,
+  wideCards,
+}: {
+  compact: boolean;
+  entry: MonsterStatEntry;
+  wideCards: boolean;
+}) {
   const rarityStyle =
     entry.rarity === 'Muy raro'
       ? styles.badgeVeryRare
@@ -95,15 +90,44 @@ function CodexCard({ compact, entry }: { compact: boolean; entry: CodexEntry }) 
           : styles.badgeCommon;
 
   return (
-    <View style={[styles.codexCard, compact && styles.codexCardCompact]}>
-      <View style={styles.codexHead}>
-        <Text numberOfLines={1} style={styles.codexName}>
-          {entry.name}
-        </Text>
-        <Text style={[styles.codexBadge, rarityStyle]}>{entry.rarity}</Text>
+    <View
+      style={[
+        styles.monsterCard,
+        compact && styles.monsterCardCompact,
+        !compact && wideCards ? styles.monsterCardWide : styles.monsterCardNarrow,
+      ]}
+    >
+      <View style={styles.monsterHeader}>
+        <View style={styles.monsterImageWrap}>
+          <Image source={{ uri: entry.imageUrl }} style={styles.monsterImage} />
+        </View>
+        <View style={styles.monsterHeaderBody}>
+          <Text numberOfLines={2} style={styles.monsterName}>
+            {entry.name}
+          </Text>
+          <Text style={[styles.monsterBadge, rarityStyle]}>{entry.rarity}</Text>
+        </View>
       </View>
-      <Text style={styles.codexFound}>Donde: {entry.foundIn}</Text>
-      <Text style={styles.codexNotes}>{entry.notes}</Text>
+
+      <View style={styles.statsBox}>
+        <StatLine label="Vida" value={entry.health} />
+        <StatLine label="Dano" value={entry.attack} />
+        <StatLine label="XP" value={entry.xp} />
+        <StatLine label="Spawn" value={entry.spawn} />
+      </View>
+
+      <Text style={styles.monsterMeta}>Zona: {entry.foundIn}</Text>
+      <Text style={styles.monsterNotes}>Drops: {entry.drops}</Text>
+      <Text style={styles.monsterNotes}>{entry.notes}</Text>
+    </View>
+  );
+}
+
+function StatLine({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statLine}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
     </View>
   );
 }
@@ -124,66 +148,6 @@ const styles = StyleSheet.create({
   badgeVeryRare: {
     backgroundColor: '#EEE2D8',
     borderColor: '#C8A98F',
-  },
-  codexBadge: {
-    borderRadius: radius.chip,
-    borderWidth: 1,
-    color: palette.text,
-    fontSize: 10,
-    overflow: 'hidden',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  codexCard: {
-    backgroundColor: palette.stoneSoft,
-    borderColor: palette.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: 4,
-    padding: spacing.sm,
-    width: '32%',
-  },
-  codexCardCompact: {
-    width: '100%',
-  },
-  codexFound: {
-    color: palette.secondary,
-    fontSize: 10,
-    lineHeight: 14,
-  },
-  codexGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  codexGridCompact: {
-    flexDirection: 'column',
-  },
-  codexHead: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.xs,
-    justifyContent: 'space-between',
-  },
-  codexName: {
-    color: palette.text,
-    flex: 1,
-    fontFamily: font.display,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  codexNotes: {
-    color: palette.muted,
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  codexTitle: {
-    color: palette.text,
-    fontFamily: font.display,
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
   },
   content: {
     alignSelf: 'center',
@@ -224,15 +188,89 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  welcomeText: {
-    color: '#F7F1E1',
-    fontFamily: font.pixel,
-    fontSize: 9,
-    lineHeight: 16,
+  legendRow: {
+    gap: 2,
+    marginBottom: spacing.sm,
   },
-  welcomeTextCompact: {
-    fontSize: 8,
+  legendText: {
+    color: palette.secondary,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  monsterBadge: {
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    color: palette.text,
+    fontSize: 10,
+    overflow: 'hidden',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    textAlign: 'center',
+  },
+  monsterCard: {
+    backgroundColor: palette.stoneSoft,
+    borderColor: palette.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.sm,
+  },
+  monsterCardCompact: {
+    width: '100%',
+  },
+  monsterCardNarrow: {
+    width: '49%',
+  },
+  monsterCardWide: {
+    width: '32.5%',
+  },
+  monsterGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  monsterGridCompact: {
+    flexDirection: 'column',
+  },
+  monsterHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  monsterHeaderBody: {
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
+  },
+  monsterImage: {
+    height: 46,
+    width: 46,
+  },
+  monsterImageWrap: {
+    alignItems: 'center',
+    backgroundColor: '#DFE6E1',
+    borderColor: '#A3B3A8',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    height: 58,
+    justifyContent: 'center',
+    width: 58,
+  },
+  monsterMeta: {
+    color: palette.secondary,
+    fontSize: 11,
     lineHeight: 14,
+  },
+  monsterName: {
+    color: palette.text,
+    fontFamily: font.display,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  monsterNotes: {
+    color: palette.muted,
+    fontSize: 11,
+    lineHeight: 15,
   },
   page: {
     backgroundColor: palette.appBackground,
@@ -253,5 +291,40 @@ const styles = StyleSheet.create({
   },
   sourceList: {
     gap: spacing.xs,
+  },
+  statLabel: {
+    color: palette.primaryDark,
+    fontFamily: font.display,
+    fontSize: 10,
+    minWidth: 44,
+  },
+  statLine: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  statsBox: {
+    backgroundColor: '#EAF0EC',
+    borderColor: '#B7C5BC',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    gap: 4,
+    padding: spacing.xs,
+  },
+  statValue: {
+    color: palette.text,
+    flex: 1,
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  welcomeText: {
+    color: '#F7F1E1',
+    fontFamily: font.pixel,
+    fontSize: 9,
+    lineHeight: 16,
+  },
+  welcomeTextCompact: {
+    fontSize: 8,
+    lineHeight: 14,
   },
 });

@@ -6,6 +6,15 @@ export interface CodexEntry {
   rarity: 'Común' | 'Poco común' | 'Raro' | 'Muy raro';
 }
 
+export interface MonsterStatEntry extends CodexEntry {
+  attack: string;
+  drops: string;
+  health: string;
+  imageUrl: string;
+  spawn: string;
+  xp: string;
+}
+
 export const biomeCodex: CodexEntry[] = [
   {
     foundIn: 'Overworld',
@@ -180,5 +189,141 @@ export const floraCodex: CodexEntry[] = [
     name: 'Hongo gigante',
     notes: 'Granjas de comida/combustible en bioma raro.',
     rarity: 'Muy raro',
+  },
+];
+
+const toProxyIcon = (url: string) =>
+  `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//i, ''))}&w=128&h=128&fit=inside`;
+
+export const monsterCodex: MonsterStatEntry[] = [
+  {
+    attack: 'Golpe melee: 2.5 / 3 / 4.5 HP (facil/normal/dificil).',
+    drops: 'Carne podrida 0-2; raro: hierro, zanahoria o papa.',
+    foundIn: 'Overworld noche, cuevas, spawners',
+    health: '20 HP (10 corazones).',
+    id: 'zombie',
+    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/zombie_spawn_egg.png'),
+    name: 'Zombie',
+    notes: 'Undead base para farm XP y drops tempranos.',
+    rarity: 'Común',
+    spawn: 'Luz 0. Puede aparecer en hordas.',
+    xp: '5 XP (adulto) / 12 XP (baby).',
+  },
+  {
+    attack: 'Arco a distancia: dano variable por carga/dificultad.',
+    drops: 'Huesos 0-2, flechas 0-2; raro: arco.',
+    foundIn: 'Overworld noche, cuevas, spawners',
+    health: '20 HP (10 corazones).',
+    id: 'skeleton',
+    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/skeleton_spawn_egg.png'),
+    name: 'Esqueleto',
+    notes: 'Muy peligroso a distancia; clave para granja de flechas y hueso.',
+    rarity: 'Común',
+    spawn: 'Luz 0. Quema al sol si no esta protegido.',
+    xp: '5 XP.',
+  },
+  {
+    attack: 'Explosion de alto dano en corto alcance.',
+    drops: 'Polvora 0-2; disco (si lo mata esqueleto), cabeza (charged creeper).',
+    foundIn: 'Overworld noche, cuevas',
+    health: '20 HP (10 corazones).',
+    id: 'creeper',
+    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/creeper_spawn_egg.png'),
+    name: 'Creeper',
+    notes: 'Amenaza principal para construcciones por dano de explosion.',
+    rarity: 'Común',
+    spawn: 'Luz 0. Se activa al acercarte.',
+    xp: '5 XP.',
+  },
+  {
+    attack: 'Melee: 2 / 2 / 3 HP (facil/normal/dificil).',
+    drops: 'Hilo 0-2, ojo de arana 0-1.',
+    foundIn: 'Overworld noche, cuevas',
+    health: '16 HP (8 corazones).',
+    id: 'spider',
+    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/spider_spawn_egg.png'),
+    name: 'Araña',
+    notes: 'Escala muros; neutral de dia, hostil de noche.',
+    rarity: 'Común',
+    spawn: 'Luz 0 y spawners de mina abandonada.',
+    xp: '5 XP.',
+  },
+  {
+    attack: 'Melee: 4 / 7 / 10 HP (facil/normal/dificil).',
+    drops: 'Perla de Ender 0-1.',
+    foundIn: 'Overworld noche, End',
+    health: '40 HP (20 corazones).',
+    id: 'enderman',
+    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/enderman_spawn_egg.png'),
+    name: 'Enderman',
+    notes: 'Clave para progreso al Stronghold y al End.',
+    rarity: 'Raro',
+    spawn: 'Luz 0 en Overworld. Muy comun en End.',
+    xp: '5 XP.',
+  },
+  {
+    attack: 'Pociones de dano/veneno/debilidad a distancia.',
+    drops: 'Polvora, redstone, botellas, glowstone, palo, azucar.',
+    foundIn: 'Pantanos, cabañas, raids',
+    health: '26 HP (13 corazones).',
+    id: 'witch',
+    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/witch_spawn_egg.png'),
+    name: 'Bruja',
+    notes: 'Objetivo excelente para granjas de redstone y objetos de alquimia.',
+    rarity: 'Poco común',
+    spawn: 'Luz 0 (hostil) y cabaña de bruja.',
+    xp: '5 XP.',
+  },
+  {
+    attack: 'Golpe melee + efecto hambre.',
+    drops: 'Carne podrida 0-2.',
+    foundIn: 'Desiertos',
+    health: '20 HP (10 corazones).',
+    id: 'husk',
+    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/husk_spawn_egg.png'),
+    name: 'Husk',
+    notes: 'Variante de zombie que no se quema con el sol.',
+    rarity: 'Poco común',
+    spawn: 'Desierto con luz 0.',
+    xp: '5 XP.',
+  },
+  {
+    attack: 'Melee y a veces tridente a distancia.',
+    drops: 'Carne podrida, cobre; raro: tridente y concha nautilo.',
+    foundIn: 'Oceanos y rios',
+    health: '20 HP (10 corazones).',
+    id: 'drowned',
+    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/drowned_spawn_egg.png'),
+    name: 'Ahogado (Drowned)',
+    notes: 'Importante para tridente y nautilo.',
+    rarity: 'Poco común',
+    spawn: 'Zonas acuaticas oscuras y conversion de zombie bajo agua.',
+    xp: '5 XP.',
+  },
+  {
+    attack: 'Ataque en picada: 3 / 4 / 6 HP (facil/normal/dificil).',
+    drops: 'Membrana fantasma 0-1.',
+    foundIn: 'Cielo nocturno',
+    health: '20 HP (10 corazones).',
+    id: 'phantom',
+    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/phantom_spawn_egg.png'),
+    name: 'Phantom',
+    notes: 'Aparece cuando no duermes; util para reparar Elytra.',
+    rarity: 'Poco común',
+    spawn: 'Tras 3 noches sin dormir.',
+    xp: '5 XP.',
+  },
+  {
+    attack: 'Dano variable por tamano (grande/mediano).',
+    drops: 'Bolas de slime (al morir medianos/pequenos).',
+    foundIn: 'Chunks de slime, pantano',
+    health: 'Tamano dependiente (1 / 4 / 16 HP).',
+    id: 'slime',
+    imageUrl: toProxyIcon('https://mcasset.cloud/1.21.7/assets/minecraft/textures/item/slime_spawn_egg.png'),
+    name: 'Slime',
+    notes: 'Basico para pegamento (pistones, redstone, granjas).',
+    rarity: 'Poco común',
+    spawn: 'Swamp de noche y slime chunks bajo Y 40.',
+    xp: '1-4 XP segun tamano.',
   },
 ];
