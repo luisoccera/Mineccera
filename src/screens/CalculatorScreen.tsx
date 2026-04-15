@@ -6,11 +6,14 @@ import { font, palette, radius, spacing } from '../theme';
 import {
   calculateBaSingSeProject,
   calculateDiamondNeed,
+  calculatePortalCoordinates,
+  calculatePortalFrame,
   calculateStructureBlocks,
   calculateTheWallProject,
   DiamondPiece,
   diamondCostByPiece,
   MegaProjectPreset,
+  PortalDirection,
   StructureMode,
 } from '../utils/calculators';
 
@@ -37,6 +40,14 @@ const megaPresets: Array<{ id: MegaProjectPreset; label: string }> = [
   { id: 'ba_sing_se', label: 'Ba Sing Se (radio)' },
   { id: 'the_wall', label: 'Muralla Norte (largo)' },
 ];
+const portalDirections: Array<{ id: PortalDirection; label: string }> = [
+  { id: 'overworld_to_nether', label: 'Overworld ➜ Nether' },
+  { id: 'nether_to_overworld', label: 'Nether ➜ Overworld' },
+];
+const portalCornersMode: Array<{ id: 'full' | 'no_corners'; label: string }> = [
+  { id: 'full', label: 'Marco completo' },
+  { id: 'no_corners', label: 'Sin esquinas' },
+];
 type MegaGuideId = 'ba_sing_se' | 'got_wall' | 'aot_wall' | 'zaun';
 
 const megaGuides: Array<{ id: MegaGuideId; label: string }> = [
@@ -51,6 +62,11 @@ const toPositiveNumber = (value: string, fallback: number) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const toSignedNumber = (value: string, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 export function CalculatorScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -58,6 +74,12 @@ export function CalculatorScreen() {
   const [width, setWidth] = useState('10');
   const [height, setHeight] = useState('6');
   const [mode, setMode] = useState<StructureMode>('hollowShell');
+  const [portalDirection, setPortalDirection] = useState<PortalDirection>('overworld_to_nether');
+  const [portalSourceX, setPortalSourceX] = useState('120');
+  const [portalSourceZ, setPortalSourceZ] = useState('-240');
+  const [portalInnerWidth, setPortalInnerWidth] = useState('2');
+  const [portalInnerHeight, setPortalInnerHeight] = useState('3');
+  const [portalCorners, setPortalCorners] = useState<'full' | 'no_corners'>('no_corners');
   const [selectedPieces, setSelectedPieces] = useState<Record<DiamondPiece, boolean>>({
     axe: true,
     boots: true,
@@ -98,6 +120,14 @@ export function CalculatorScreen() {
     [selectedPieces],
   );
   const diamondTotal = useMemo(() => calculateDiamondNeed(selectedPieceIds), [selectedPieceIds]);
+  const portalCoordinates = useMemo(
+    () => calculatePortalCoordinates(toSignedNumber(portalSourceX, 0), toSignedNumber(portalSourceZ, 0), portalDirection),
+    [portalDirection, portalSourceX, portalSourceZ],
+  );
+  const portalFrame = useMemo(
+    () => calculatePortalFrame(toPositiveNumber(portalInnerWidth, 2), toPositiveNumber(portalInnerHeight, 3), portalCorners),
+    [portalCorners, portalInnerHeight, portalInnerWidth],
+  );
   const megaProject = useMemo(() => {
     const bph = toPositiveNumber(blocksPerHour, 2400);
     if (megaPreset === 'ba_sing_se') {
@@ -348,6 +378,107 @@ export function CalculatorScreen() {
           <Text style={styles.resultLine}>Area de piso: {structure.floorArea} bloques</Text>
           <Text style={styles.resultLine}>Stacks: {structure.stacksAndRemainder}</Text>
           <Text style={styles.resultLine}>Shulkers aprox: {structure.shulkersNeeded}</Text>
+        </View>
+      </SectionCard>
+
+      <SectionCard
+        subtitle="Basada en la logica de CrafteosPE: convierte X/Z entre Overworld y Nether (relacion 8:1) y calcula obsidiana del marco"
+        title="Calculadora De Portales Nether"
+      >
+        <View style={styles.modes}>
+          {portalDirections.map((direction) => {
+            const active = direction.id === portalDirection;
+            return (
+              <Pressable
+                key={direction.id}
+                onPress={() => setPortalDirection(direction.id)}
+                style={[styles.modeChip, active && styles.modeChipActive]}
+              >
+                <Text style={[styles.modeChipText, active && styles.modeChipTextActive]}>{direction.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={[styles.row, compact && styles.rowCompact]}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Coordenada X</Text>
+            <TextInput
+              keyboardType="numbers-and-punctuation"
+              onChangeText={setPortalSourceX}
+              style={[styles.input, compact && styles.inputCompact]}
+              value={portalSourceX}
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Coordenada Z</Text>
+            <TextInput
+              keyboardType="numbers-and-punctuation"
+              onChangeText={setPortalSourceZ}
+              style={[styles.input, compact && styles.inputCompact]}
+              value={portalSourceZ}
+            />
+          </View>
+        </View>
+
+        <View style={styles.resultBox}>
+          <Text style={styles.resultLine}>
+            {portalDirection === 'overworld_to_nether' ? 'Destino Nether' : 'Destino Overworld'} (redondeado):
+            {' '}
+            X {portalCoordinates.targetXRounded} | Z {portalCoordinates.targetZRounded}
+          </Text>
+          <Text style={styles.resultHint}>
+            Coordenada exacta: X {portalCoordinates.targetX.toFixed(2)} | Z {portalCoordinates.targetZ.toFixed(2)}
+          </Text>
+          <Text style={styles.resultHint}>
+            Tip: mantén la misma orientación del portal al construir el marco de destino.
+          </Text>
+        </View>
+
+        <View style={[styles.row, compact && styles.rowCompact]}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Ancho interno (2-21)</Text>
+            <TextInput
+              keyboardType="number-pad"
+              onChangeText={setPortalInnerWidth}
+              style={[styles.input, compact && styles.inputCompact]}
+              value={portalInnerWidth}
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Alto interno (3-21)</Text>
+            <TextInput
+              keyboardType="number-pad"
+              onChangeText={setPortalInnerHeight}
+              style={[styles.input, compact && styles.inputCompact]}
+              value={portalInnerHeight}
+            />
+          </View>
+        </View>
+
+        <View style={styles.modes}>
+          {portalCornersMode.map((modeOption) => {
+            const active = modeOption.id === portalCorners;
+            return (
+              <Pressable
+                key={modeOption.id}
+                onPress={() => setPortalCorners(modeOption.id)}
+                style={[styles.modeChip, active && styles.modeChipActive]}
+              >
+                <Text style={[styles.modeChipText, active && styles.modeChipTextActive]}>{modeOption.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.resultBox}>
+          <Text style={styles.resultLine}>Obsidiana necesaria: {portalFrame.obsidianBlocks}</Text>
+          <Text style={styles.resultHint}>
+            Marco total: {portalFrame.frameWidth} x {portalFrame.frameHeight}
+          </Text>
+          <Text style={styles.resultHint}>
+            Área activa del portal: {portalFrame.portalArea} bloques ({portalFrame.innerWidth} x {portalFrame.innerHeight})
+          </Text>
         </View>
       </SectionCard>
 

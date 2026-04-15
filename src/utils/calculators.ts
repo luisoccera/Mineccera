@@ -7,6 +7,28 @@ export interface StructureResult {
   stacksAndRemainder: string;
 }
 
+export type PortalDirection = 'overworld_to_nether' | 'nether_to_overworld';
+
+export interface PortalCoordinateResult {
+  direction: PortalDirection;
+  sourceX: number;
+  sourceZ: number;
+  targetX: number;
+  targetZ: number;
+  targetXRounded: number;
+  targetZRounded: number;
+}
+
+export interface PortalFrameResult {
+  cornersMode: 'full' | 'no_corners';
+  frameHeight: number;
+  frameWidth: number;
+  innerHeight: number;
+  innerWidth: number;
+  obsidianBlocks: number;
+  portalArea: number;
+}
+
 export type MegaProjectPreset = 'ba_sing_se' | 'the_wall';
 
 export interface MegaProjectBreakdown {
@@ -97,6 +119,8 @@ const safePositive = (value: number, fallback: number) => {
   return value;
 };
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
 const toStacks = (blocks: number) => {
   const stacks = Math.floor(blocks / 64);
   const remainder = blocks % 64;
@@ -149,6 +173,51 @@ export function calculateStructureBlocks(
 
 export function calculateDiamondNeed(pieces: DiamondPiece[]) {
   return pieces.reduce((acc, piece) => acc + diamondCostByPiece[piece], 0);
+}
+
+export function calculatePortalCoordinates(
+  sourceXInput: number,
+  sourceZInput: number,
+  direction: PortalDirection,
+): PortalCoordinateResult {
+  const sourceX = Number.isFinite(sourceXInput) ? sourceXInput : 0;
+  const sourceZ = Number.isFinite(sourceZInput) ? sourceZInput : 0;
+  const factor = direction === 'overworld_to_nether' ? 1 / 8 : 8;
+  const targetX = sourceX * factor;
+  const targetZ = sourceZ * factor;
+
+  return {
+    direction,
+    sourceX,
+    sourceZ,
+    targetX,
+    targetXRounded: Math.round(targetX),
+    targetZ,
+    targetZRounded: Math.round(targetZ),
+  };
+}
+
+export function calculatePortalFrame(
+  innerWidthInput: number,
+  innerHeightInput: number,
+  cornersMode: 'full' | 'no_corners',
+): PortalFrameResult {
+  const innerWidth = clamp(Math.floor(safePositive(innerWidthInput, 2)), 2, 21);
+  const innerHeight = clamp(Math.floor(safePositive(innerHeightInput, 3)), 3, 21);
+  const frameWidth = innerWidth + 2;
+  const frameHeight = innerHeight + 2;
+  const perimeter = frameWidth * 2 + (frameHeight - 2) * 2;
+  const obsidianBlocks = cornersMode === 'no_corners' ? Math.max(0, perimeter - 4) : perimeter;
+
+  return {
+    cornersMode,
+    frameHeight,
+    frameWidth,
+    innerHeight,
+    innerWidth,
+    obsidianBlocks,
+    portalArea: innerWidth * innerHeight,
+  };
 }
 
 export function calculateBaSingSeProject(input: BaSingSeInput): MegaProjectResult {
