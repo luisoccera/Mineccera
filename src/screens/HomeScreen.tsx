@@ -63,6 +63,7 @@ const proxifyImage = (url?: string) => {
 const realmMembers = [
   'Cucha',
   'Kike',
+  'Erickfer',
   'Raúl',
   'Tete',
   'Ash',
