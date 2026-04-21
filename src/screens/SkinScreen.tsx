@@ -1,5 +1,5 @@
 import * as Linking from 'expo-linking';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
@@ -9,6 +9,7 @@ import { searchMinecraftSkins, type SkinResult } from '../data/skins';
 
 const FEATURED_SKINS_QUERY = 'latest';
 const FEATURED_SKINS_TARGET = 50;
+const BEDROCK_ALLOWED_DIMENSIONS = new Set(['64x64', '64x32']);
 
 const dedupeSkins = (items: SkinResult[]) => {
   const seen = new Set<string>();
@@ -89,6 +90,29 @@ const getPreferredDownloadUrl = (item: SkinResult) => {
   return `https://www.minecraftskins.com/skin/download/${item.id}`;
 };
 
+const parsePngDimensions = (buffer: ArrayBuffer) => {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length < 24) {
+    return null;
+  }
+
+  const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
+  for (let i = 0; i < pngSignature.length; i += 1) {
+    if (bytes[i] !== pngSignature[i]) {
+      return null;
+    }
+  }
+
+  const width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+  const height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return { height, width };
+};
+
 export function SkinScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -107,18 +131,65 @@ export function SkinScreen() {
   const [error, setError] = useState('');
   const [downloadingId, setDownloadingId] = useState('');
   const [brokenImages, setBrokenImages] = useState<Record<string, true>>({});
+  const bedrockCompatByUrl = useRef<Record<string, boolean>>({});
+
+  const loadPngDimensions = async (url: string) => {
+    const attempts = toDownloadFetchCandidates(url);
+    for (const attempt of attempts) {
+      try {
+        const response = await fetch(attempt, {
+          headers: { Accept: 'image/png,image/*;q=0.9,*/*;q=0.8' },
+        });
+        if (!response.ok) {
+          continue;
+        }
+        const buffer = await response.arrayBuffer();
+        const dimensions = parsePngDimensions(buffer);
+        if (dimensions) {
+          return dimensions;
+        }
+      } catch {
+        // Se prueba el siguiente mirror/proxy.
+      }
+    }
+    return null;
+  };
+
+  const filterBedrockSkins = async (items: SkinResult[]) => {
+    const checked = await Promise.all(
+      items.map(async (item) => {
+        const downloadUrl = getPreferredDownloadUrl(item);
+        if (!downloadUrl) {
+          return null;
+        }
+
+        const cached = bedrockCompatByUrl.current[downloadUrl];
+        if (typeof cached === 'boolean') {
+          return cached ? item : null;
+        }
+
+        const dimensions = await loadPngDimensions(downloadUrl);
+        const key = dimensions ? `${dimensions.width}x${dimensions.height}` : '';
+        const isBedrock = BEDROCK_ALLOWED_DIMENSIONS.has(key);
+        bedrockCompatByUrl.current[downloadUrl] = isBedrock;
+        return isBedrock ? item : null;
+      }),
+    );
+
+    return dedupeSkins(checked.filter((item): item is SkinResult => Boolean(item)));
+  };
 
   const resultCount = results.length;
   const canLoadMore = hasNextPage && !loading && !loadingMore && !loadingAll;
 
   const statusLine = useMemo(() => {
     if (!activeQuery) {
-      return 'Cargando skins del momento...';
+      return 'Cargando skins Bedrock del momento...';
     }
     if (isFeaturedMode) {
-      return `Skins del momento cargadas: ${resultCount} | Puedes elegir una o buscar algo especifico.`;
+      return `Skins Bedrock del momento cargadas: ${resultCount} | Puedes elegir una o buscar algo especifico.`;
     }
-    return `Consulta: "${activeQuery}" | Pagina actual: ${page} | Resultados: ${resultCount}`;
+    return `Consulta: "${activeQuery}" | Pagina actual: ${page} | Resultados Bedrock: ${resultCount}`;
   }, [activeQuery, isFeaturedMode, page, resultCount]);
 
   const loadFeaturedSkins = async () => {
@@ -134,7 +205,8 @@ export function SkinScreen() {
 
       while (hasNext && collected.length < FEATURED_SKINS_TARGET && currentPage <= maxPages) {
         const response = await searchMinecraftSkins(FEATURED_SKINS_QUERY, currentPage);
-        collected = dedupeSkins([...collected, ...response.results]);
+        const bedrockPage = await filterBedrockSkins(response.results);
+        collected = dedupeSkins([...collected, ...bedrockPage]);
         hasNext = response.hasNextPage;
         currentPage += 1;
       }
@@ -173,10 +245,11 @@ export function SkinScreen() {
 
     try {
       const response = await searchMinecraftSkins(clean, 1);
+      const bedrockResults = await filterBedrockSkins(response.results);
       setActiveQuery(response.query || clean.toLowerCase());
       setPage(response.page);
       setHasNextPage(response.hasNextPage);
-      setResults(dedupeSkins(response.results));
+      setResults(bedrockResults);
       setIsFeaturedMode(false);
     } catch (searchError) {
       setResults([]);
@@ -201,9 +274,10 @@ export function SkinScreen() {
     try {
       const nextPage = page + 1;
       const response = await searchMinecraftSkins(activeQuery, nextPage);
+      const bedrockResults = await filterBedrockSkins(response.results);
       setPage(response.page);
       setHasNextPage(response.hasNextPage);
-      setResults((prev) => dedupeSkins([...prev, ...response.results]));
+      setResults((prev) => dedupeSkins([...prev, ...bedrockResults]));
     } catch (searchError) {
       setError(toErrorMessage(searchError));
     } finally {
@@ -227,9 +301,10 @@ export function SkinScreen() {
 
       for (let i = 0; i < maxExtraPages && nextAvailable; i += 1) {
         const response = await searchMinecraftSkins(activeQuery, currentPage + 1);
+        const bedrockResults = await filterBedrockSkins(response.results);
         currentPage = response.page;
         nextAvailable = response.hasNextPage;
-        collected = dedupeSkins([...collected, ...response.results]);
+        collected = dedupeSkins([...collected, ...bedrockResults]);
       }
 
       setResults(collected);
@@ -308,7 +383,7 @@ export function SkinScreen() {
   return (
     <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} style={styles.page}>
       <SectionCard
-        subtitle="Busca skins reales de MinecraftSkins.com, mira miniatura y descarga el PNG"
+        subtitle="Busca skins reales de MinecraftSkins.com y muestra solo formatos Bedrock (64x64 / 64x32)"
         title="Buscador De Skins"
       >
         <Text style={styles.metaText}>
