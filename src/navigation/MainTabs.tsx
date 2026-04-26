@@ -6,6 +6,7 @@ import { EnchantingScreen } from '../screens/EnchantingScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { SeedMapScreen } from '../screens/SeedMapScreen';
 import { SkinScreen } from '../screens/SkinScreen';
+import { WorkTablesScreen } from '../screens/WorkTablesScreen';
 import { useDeviceClass } from '../responsive';
 import { font, palette } from '../theme';
 
@@ -14,6 +15,7 @@ type TabParamList = {
   Calculadora: undefined;
   Encantamientos: undefined;
   Inicio: undefined;
+  Mesas: undefined;
   Seed: undefined;
   Skin: undefined;
 };
@@ -83,6 +85,7 @@ export function MainTabs() {
       <Tab.Screen component={CalculatorScreen} name="Calculadora" options={{ tabBarLabel: 'Calculadora' }} />
       <Tab.Screen component={EnchantingScreen} name="Encantamientos" options={{ tabBarLabel: 'Encantamientos' }} />
       <Tab.Screen component={BuildIdeasScreen} name="Builds" options={{ tabBarLabel: 'Proyectos' }} />
+      <Tab.Screen component={WorkTablesScreen} name="Mesas" options={{ tabBarLabel: 'Mesas' }} />
       <Tab.Screen component={SeedMapScreen} name="Seed" options={{ tabBarLabel: 'Seed' }} />
       <Tab.Screen component={SkinScreen} name="Skin" options={{ tabBarLabel: 'Skins' }} />
     </Tab.Navigator>
@@ -97,6 +100,8 @@ function getTabMeta(routeName: keyof TabParamList): { emoji: string; label: stri
       return { emoji: '🧮', label: 'Calculadora' };
     case 'Encantamientos':
       return { emoji: '✨', label: 'Encantamientos' };
+    case 'Mesas':
+      return { emoji: '🛠️', label: 'Mesas' };
     case 'Seed':
       return { emoji: '🗺️', label: 'Seed' };
     case 'Skin':
