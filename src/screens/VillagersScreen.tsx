@@ -50,6 +50,55 @@ const workstationTextureById: Record<string, string> = {
   stonecutter: `${textureBase}/block/stonecutter_side.png`,
 };
 
+const toProxyTexture = (url?: string) => {
+  const clean = (url || '').trim();
+  if (!clean) {
+    return '';
+  }
+  const normalized = clean.replace(/^https?:\/\//i, '');
+  return `https://images.weserv.nl/?url=${encodeURIComponent(normalized)}&w=256&h=256&fit=contain`;
+};
+
+function TextureImage({ label, url }: { label: string; url?: string }) {
+  const [index, setIndex] = useState(0);
+  const candidates = useMemo(() => {
+    const list = [url || '', toProxyTexture(url)];
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const item of list) {
+      const clean = item.trim();
+      if (!clean || seen.has(clean)) {
+        continue;
+      }
+      seen.add(clean);
+      unique.push(clean);
+    }
+    return unique;
+  }, [url]);
+
+  if (!candidates.length) {
+    return (
+      <View style={styles.mediaFallback}>
+        <Text style={styles.mediaFallbackText}>Sin imagen</Text>
+      </View>
+    );
+  }
+
+  const active = candidates[index] || candidates[candidates.length - 1];
+  return (
+    <Image
+      onError={() => {
+        const next = index + 1;
+        setIndex(next >= candidates.length ? candidates.length - 1 : next);
+      }}
+      resizeMode="contain"
+      source={{ uri: active }}
+      style={styles.mediaImage}
+      accessibilityLabel={label}
+    />
+  );
+}
+
 export function VillagersScreen() {
   const deviceClass = useDeviceClass();
   const compact = deviceClass === 'mobile';
@@ -140,23 +189,21 @@ export function VillagersScreen() {
                 <View style={styles.mediaRow}>
                   <View style={styles.mediaCard}>
                     <Text style={styles.mediaLabel}>Aldeano</Text>
-                    <Image
-                      resizeMode="contain"
-                      source={{ uri: villagerTexture }}
-                      style={styles.mediaImage}
-                    />
+                    <View style={styles.mediaPreviewWrap}>
+                      <TextureImage label={`Aldeano ${job.profession}`} url={villagerTexture} />
+                    </View>
                   </View>
                   <View style={styles.mediaCard}>
                     <Text style={styles.mediaLabel}>Mesa</Text>
                     {workstationTexture ? (
-                      <Image
-                        resizeMode="contain"
-                        source={{ uri: workstationTexture }}
-                        style={styles.mediaImage}
-                      />
+                      <View style={styles.mediaPreviewWrap}>
+                        <TextureImage label={`Mesa ${job.workstation}`} url={workstationTexture} />
+                      </View>
                     ) : (
-                      <View style={styles.mediaFallback}>
-                        <Text style={styles.mediaFallbackText}>Sin mesa</Text>
+                      <View style={styles.mediaPreviewWrap}>
+                        <View style={styles.mediaFallback}>
+                          <Text style={styles.mediaFallbackText}>Sin mesa</Text>
+                        </View>
                       </View>
                     )}
                   </View>
@@ -298,7 +345,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: 1,
     flex: 1,
-    minHeight: 118,
+    minHeight: 126,
     padding: spacing.xs,
   },
   mediaFallback: {
@@ -316,14 +363,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   mediaImage: {
-    flex: 1,
-    width: '100%',
+    height: 92,
+    width: 92,
   },
   mediaLabel: {
     color: palette.secondary,
     fontFamily: font.display,
     fontSize: 10,
     marginBottom: 4,
+  },
+  mediaPreviewWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 96,
+    width: '100%',
   },
   mediaRow: {
     flexDirection: 'row',
