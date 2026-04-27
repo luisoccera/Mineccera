@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SectionCard } from '../components/SectionCard';
 import { villagerCoreRules, villagerJobGuides } from '../data/villagerJobs';
 import { workTableRecipes } from '../data/workTables';
@@ -13,6 +13,42 @@ const roleFilters: Array<{ id: RoleFilter; label: string }> = [
   { id: 'with_job', label: 'Con trabajo' },
   { id: 'without_job', label: 'Sin trabajo' },
 ];
+
+const textureBase = 'https://mcasset.cloud/1.21.5/assets/minecraft/textures';
+
+const villagerTextureByJobId: Record<string, string> = {
+  armorer: `${textureBase}/entity/villager/profession/armorer.png`,
+  butcher: `${textureBase}/entity/villager/profession/butcher.png`,
+  cartographer: `${textureBase}/entity/villager/profession/cartographer.png`,
+  cleric: `${textureBase}/entity/villager/profession/cleric.png`,
+  farmer: `${textureBase}/entity/villager/profession/farmer.png`,
+  fisherman: `${textureBase}/entity/villager/profession/fisherman.png`,
+  fletcher: `${textureBase}/entity/villager/profession/fletcher.png`,
+  leatherworker: `${textureBase}/entity/villager/profession/leatherworker.png`,
+  librarian: `${textureBase}/entity/villager/profession/librarian.png`,
+  mason: `${textureBase}/entity/villager/profession/mason.png`,
+  nitwit: `${textureBase}/entity/villager/nitwit.png`,
+  shepherd: `${textureBase}/entity/villager/profession/shepherd.png`,
+  toolsmith: `${textureBase}/entity/villager/profession/toolsmith.png`,
+  unemployed: `${textureBase}/entity/villager/villager.png`,
+  weaponsmith: `${textureBase}/entity/villager/profession/weaponsmith.png`,
+};
+
+const workstationTextureById: Record<string, string> = {
+  barrel: `${textureBase}/block/barrel_side.png`,
+  blast_furnace: `${textureBase}/block/blast_furnace_front.png`,
+  brewing_stand: `${textureBase}/block/brewing_stand.png`,
+  cartography_table: `${textureBase}/block/cartography_table_top.png`,
+  cauldron: `${textureBase}/block/cauldron_side.png`,
+  composter: `${textureBase}/block/composter_side.png`,
+  fletching_table: `${textureBase}/block/fletching_table_front.png`,
+  grindstone: `${textureBase}/block/grindstone_side.png`,
+  lectern: `${textureBase}/block/lectern_front.png`,
+  loom: `${textureBase}/block/loom_front.png`,
+  smithing_table: `${textureBase}/block/smithing_table_front.png`,
+  smoker: `${textureBase}/block/smoker_front.png`,
+  stonecutter: `${textureBase}/block/stonecutter_side.png`,
+};
 
 export function VillagersScreen() {
   const deviceClass = useDeviceClass();
@@ -94,10 +130,37 @@ export function VillagersScreen() {
         <View style={styles.jobsWrap}>
           {filteredJobs.map((job) => {
             const recipe = job.workstationId ? workTableRecipes.find((entry) => entry.id === job.workstationId) : undefined;
+            const villagerTexture = villagerTextureByJobId[job.id] || villagerTextureByJobId.unemployed;
+            const workstationTexture = job.workstationId ? workstationTextureById[job.workstationId] : '';
             return (
               <View key={job.id} style={styles.jobCard}>
                 <Text style={styles.jobTitle}>{job.profession}</Text>
                 <Text style={styles.jobStation}>Mesa/Bloque: {job.workstation}</Text>
+
+                <View style={styles.mediaRow}>
+                  <View style={styles.mediaCard}>
+                    <Text style={styles.mediaLabel}>Aldeano</Text>
+                    <Image
+                      resizeMode="contain"
+                      source={{ uri: villagerTexture }}
+                      style={styles.mediaImage}
+                    />
+                  </View>
+                  <View style={styles.mediaCard}>
+                    <Text style={styles.mediaLabel}>Mesa</Text>
+                    {workstationTexture ? (
+                      <Image
+                        resizeMode="contain"
+                        source={{ uri: workstationTexture }}
+                        style={styles.mediaImage}
+                      />
+                    ) : (
+                      <View style={styles.mediaFallback}>
+                        <Text style={styles.mediaFallbackText}>Sin mesa</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
 
                 <Text style={styles.blockTitle}>Te compra (para esmeraldas)</Text>
                 {job.buysForEmeralds.map((item, index) => (
@@ -228,6 +291,44 @@ const styles = StyleSheet.create({
     color: palette.secondary,
     fontSize: 11,
     lineHeight: 16,
+  },
+  mediaCard: {
+    backgroundColor: '#EDF3EF',
+    borderColor: '#B8C8BE',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 118,
+    padding: spacing.xs,
+  },
+  mediaFallback: {
+    alignItems: 'center',
+    backgroundColor: '#DCE3DE',
+    borderColor: '#A2B1A8',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  mediaFallbackText: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  mediaImage: {
+    flex: 1,
+    width: '100%',
+  },
+  mediaLabel: {
+    color: palette.secondary,
+    fontFamily: font.display,
+    fontSize: 10,
+    marginBottom: 4,
+  },
+  mediaRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
   },
   page: {
     backgroundColor: palette.appBackground,
