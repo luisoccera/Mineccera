@@ -14,90 +14,39 @@ const roleFilters: Array<{ id: RoleFilter; label: string }> = [
   { id: 'without_job', label: 'Sin trabajo' },
 ];
 
-const textureBase = 'https://mcasset.cloud/1.21.5/assets/minecraft/textures';
-
-const villagerTextureByJobId: Record<string, string> = {
-  armorer: `${textureBase}/entity/villager/profession/armorer.png`,
-  butcher: `${textureBase}/entity/villager/profession/butcher.png`,
-  cartographer: `${textureBase}/entity/villager/profession/cartographer.png`,
-  cleric: `${textureBase}/entity/villager/profession/cleric.png`,
-  farmer: `${textureBase}/entity/villager/profession/farmer.png`,
-  fisherman: `${textureBase}/entity/villager/profession/fisherman.png`,
-  fletcher: `${textureBase}/entity/villager/profession/fletcher.png`,
-  leatherworker: `${textureBase}/entity/villager/profession/leatherworker.png`,
-  librarian: `${textureBase}/entity/villager/profession/librarian.png`,
-  mason: `${textureBase}/entity/villager/profession/mason.png`,
-  nitwit: `${textureBase}/entity/villager/nitwit.png`,
-  shepherd: `${textureBase}/entity/villager/profession/shepherd.png`,
-  toolsmith: `${textureBase}/entity/villager/profession/toolsmith.png`,
-  unemployed: `${textureBase}/entity/villager/villager.png`,
-  weaponsmith: `${textureBase}/entity/villager/profession/weaponsmith.png`,
+const villagerTextureByJobId: Record<string, any> = {
+  armorer: require('../../assets/villagers/armorer.png'),
+  butcher: require('../../assets/villagers/butcher.png'),
+  cartographer: require('../../assets/villagers/cartographer.png'),
+  cleric: require('../../assets/villagers/cleric.png'),
+  farmer: require('../../assets/villagers/farmer.png'),
+  fisherman: require('../../assets/villagers/fisherman.png'),
+  fletcher: require('../../assets/villagers/fletcher.png'),
+  leatherworker: require('../../assets/villagers/leatherworker.png'),
+  librarian: require('../../assets/villagers/librarian.png'),
+  mason: require('../../assets/villagers/mason.png'),
+  nitwit: require('../../assets/villagers/nitwit.png'),
+  shepherd: require('../../assets/villagers/shepherd.png'),
+  toolsmith: require('../../assets/villagers/toolsmith.png'),
+  unemployed: require('../../assets/villagers/unemployed.png'),
+  weaponsmith: require('../../assets/villagers/weaponsmith.png'),
 };
 
-const workstationTextureById: Record<string, string> = {
-  barrel: `${textureBase}/block/barrel_side.png`,
-  blast_furnace: `${textureBase}/block/blast_furnace_front.png`,
-  brewing_stand: `${textureBase}/block/brewing_stand.png`,
-  cartography_table: `${textureBase}/block/cartography_table_top.png`,
-  cauldron: `${textureBase}/block/cauldron_side.png`,
-  composter: `${textureBase}/block/composter_side.png`,
-  fletching_table: `${textureBase}/block/fletching_table_front.png`,
-  grindstone: `${textureBase}/block/grindstone_side.png`,
-  lectern: `${textureBase}/block/lectern_front.png`,
-  loom: `${textureBase}/block/loom_front.png`,
-  smithing_table: `${textureBase}/block/smithing_table_front.png`,
-  smoker: `${textureBase}/block/smoker_front.png`,
-  stonecutter: `${textureBase}/block/stonecutter_side.png`,
+const workstationTextureById: Record<string, any> = {
+  barrel: require('../../assets/workstations/barrel.png'),
+  blast_furnace: require('../../assets/workstations/blast_furnace.png'),
+  brewing_stand: require('../../assets/workstations/brewing_stand.png'),
+  cartography_table: require('../../assets/workstations/cartography_table.png'),
+  cauldron: require('../../assets/workstations/cauldron.png'),
+  composter: require('../../assets/workstations/composter.png'),
+  fletching_table: require('../../assets/workstations/fletching_table.png'),
+  grindstone: require('../../assets/workstations/grindstone.png'),
+  lectern: require('../../assets/workstations/lectern.png'),
+  loom: require('../../assets/workstations/loom.png'),
+  smithing_table: require('../../assets/workstations/smithing_table.png'),
+  smoker: require('../../assets/workstations/smoker.png'),
+  stonecutter: require('../../assets/workstations/stonecutter.png'),
 };
-
-const toProxyTexture = (url?: string) => {
-  const clean = (url || '').trim();
-  if (!clean) {
-    return '';
-  }
-  const normalized = clean.replace(/^https?:\/\//i, '');
-  return `https://images.weserv.nl/?url=${encodeURIComponent(normalized)}&w=256&h=256&fit=contain`;
-};
-
-function TextureImage({ label, url }: { label: string; url?: string }) {
-  const [index, setIndex] = useState(0);
-  const candidates = useMemo(() => {
-    const list = [url || '', toProxyTexture(url)];
-    const unique: string[] = [];
-    const seen = new Set<string>();
-    for (const item of list) {
-      const clean = item.trim();
-      if (!clean || seen.has(clean)) {
-        continue;
-      }
-      seen.add(clean);
-      unique.push(clean);
-    }
-    return unique;
-  }, [url]);
-
-  if (!candidates.length) {
-    return (
-      <View style={styles.mediaFallback}>
-        <Text style={styles.mediaFallbackText}>Sin imagen</Text>
-      </View>
-    );
-  }
-
-  const active = candidates[index] || candidates[candidates.length - 1];
-  return (
-    <Image
-      onError={() => {
-        const next = index + 1;
-        setIndex(next >= candidates.length ? candidates.length - 1 : next);
-      }}
-      resizeMode="contain"
-      source={{ uri: active }}
-      style={styles.mediaImage}
-      accessibilityLabel={label}
-    />
-  );
-}
 
 export function VillagersScreen() {
   const deviceClass = useDeviceClass();
@@ -180,7 +129,7 @@ export function VillagersScreen() {
           {filteredJobs.map((job) => {
             const recipe = job.workstationId ? workTableRecipes.find((entry) => entry.id === job.workstationId) : undefined;
             const villagerTexture = villagerTextureByJobId[job.id] || villagerTextureByJobId.unemployed;
-            const workstationTexture = job.workstationId ? workstationTextureById[job.workstationId] : '';
+            const workstationTexture = job.workstationId ? workstationTextureById[job.workstationId] : undefined;
             return (
               <View key={job.id} style={styles.jobCard}>
                 <Text style={styles.jobTitle}>{job.profession}</Text>
@@ -190,14 +139,24 @@ export function VillagersScreen() {
                   <View style={styles.mediaCard}>
                     <Text style={styles.mediaLabel}>Aldeano</Text>
                     <View style={styles.mediaPreviewWrap}>
-                      <TextureImage label={`Aldeano ${job.profession}`} url={villagerTexture} />
+                      <Image
+                        accessibilityLabel={`Aldeano ${job.profession}`}
+                        resizeMode="contain"
+                        source={villagerTexture}
+                        style={styles.mediaImage}
+                      />
                     </View>
                   </View>
                   <View style={styles.mediaCard}>
                     <Text style={styles.mediaLabel}>Mesa</Text>
                     {workstationTexture ? (
                       <View style={styles.mediaPreviewWrap}>
-                        <TextureImage label={`Mesa ${job.workstation}`} url={workstationTexture} />
+                        <Image
+                          accessibilityLabel={`Mesa ${job.workstation}`}
+                          resizeMode="contain"
+                          source={workstationTexture}
+                          style={styles.mediaImage}
+                        />
                       </View>
                     ) : (
                       <View style={styles.mediaPreviewWrap}>
